@@ -61,7 +61,7 @@ def _resolve_django() -> FictionScoutConfig | None:
 
 def _resolve_flask() -> FictionScoutConfig | None:
     try:
-        from flask import current_app
+        from flask import current_app  # type: ignore[import-not-found]
     except ImportError:
         return None
     try:

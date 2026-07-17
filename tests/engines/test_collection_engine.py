@@ -78,6 +78,15 @@ def test_paginate_returns_page_metadata(
     assert page.has_more is True
 
 
+def test_given_matching_articles_when_paginate_called_then_items_are_model_instances(
+    adapter: FakeAdapter, articles: list[Article]
+) -> None:
+    engine = CollectionEngine()
+    builder = Builder(Article, "star", engine=engine, adapter=adapter)
+    page = engine.paginate(builder, per_page=1, page=1)
+    assert all(isinstance(item, Article) for item in page.items)
+
+
 def test_map_ids_returns_scout_keys(
     adapter: FakeAdapter, articles: list[Article]
 ) -> None:

@@ -80,8 +80,9 @@ class CollectionEngine(Engine):
         """Return one page of matching results."""
         results = self.search(builder)
         start = (page - 1) * per_page
+        page_slice = results[start : start + per_page]
         return Page(
-            results[start : start + per_page],
+            self.map(builder, page_slice, builder.model),
             total=len(results),
             page=page,
             per_page=per_page,

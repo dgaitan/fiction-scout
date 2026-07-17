@@ -59,8 +59,8 @@ class Engine(abc.ABC):
         """Execute `builder` and return raw, engine-specific results."""
 
     @abc.abstractmethod
-    def paginate(self, builder: Builder, per_page: int, page: int) -> Any:
-        """Execute `builder` and return one page of raw, engine-specific results."""
+    def paginate(self, builder: Builder, per_page: int, page: int) -> Page:
+        """Execute `builder` and return one page of matching model instances."""
 
     @abc.abstractmethod
     def map_ids(self, results: Any) -> list[Any]:
