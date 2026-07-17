@@ -1,4 +1,4 @@
-"""fiction-scout: driver-based full-text search for Django, Flask, and any Python project."""
+"""fiction-scout: driver-based full-text search for Django, Flask, or plain Python."""
 
 from __future__ import annotations
 

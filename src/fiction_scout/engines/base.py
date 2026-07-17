@@ -13,7 +13,9 @@ if TYPE_CHECKING:
 class Page:
     """One page of paginated search results."""
 
-    def __init__(self, items: list[Any], *, total: int, page: int, per_page: int) -> None:
+    def __init__(
+        self, items: list[Any], *, total: int, page: int, per_page: int
+    ) -> None:
         self.items = items
         self.total = total
         self.page = page
@@ -72,10 +74,10 @@ class Engine(abc.ABC):
     def get_total_count(self, results: Any) -> int:
         """Extract the total match count from raw `results`."""
 
-    def create_index(self, name: str, **options: Any) -> None:
+    def create_index(self, name: str, **options: Any) -> None:  # noqa: B027
         """Create an index named `name`. No-op unless a driver overrides it."""
 
-    def delete_index(self, name: str) -> None:
+    def delete_index(self, name: str) -> None:  # noqa: B027
         """Delete the index named `name`. No-op unless a driver overrides it."""
 
     def keys(self, builder: Builder) -> list[Any]:

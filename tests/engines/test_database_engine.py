@@ -9,15 +9,21 @@ from fiction_scout.strategies import search_using_prefix
 from tests.support import Article, FakeAdapter
 
 
-def test_search_matches_via_like_by_default(adapter: FakeAdapter, articles: list[Article]) -> None:
+def test_search_matches_via_like_by_default(
+    adapter: FakeAdapter, articles: list[Article]
+) -> None:
     engine = DatabaseEngine()
     builder = Builder(Article, "wrath", engine=engine, adapter=adapter)
     assert [a.id for a in engine.get(builder)] == [1]
 
 
-def test_where_not_in_composes_with_search_term(adapter: FakeAdapter, articles: list[Article]) -> None:
+def test_where_not_in_composes_with_search_term(
+    adapter: FakeAdapter, articles: list[Article]
+) -> None:
     engine = DatabaseEngine()
-    builder = Builder(Article, "star", engine=engine, adapter=adapter).where_not_in("id", [2])
+    builder = Builder(Article, "star", engine=engine, adapter=adapter).where_not_in(
+        "id", [2]
+    )
     assert [a.id for a in engine.get(builder)] == [1]
 
 
@@ -27,7 +33,9 @@ def test_only_trashed_filter(adapter: FakeAdapter, articles: list[Article]) -> N
     assert [a.id for a in engine.get(builder)] == [3]
 
 
-def test_with_trashed_includes_soft_deleted(adapter: FakeAdapter, articles: list[Article]) -> None:
+def test_with_trashed_includes_soft_deleted(
+    adapter: FakeAdapter, articles: list[Article]
+) -> None:
     engine = DatabaseEngine()
     builder = Builder(Article, "", engine=engine, adapter=adapter).with_trashed()
     assert {a.id for a in engine.get(builder)} == {1, 2, 3}
@@ -41,7 +49,9 @@ def test_paginate(adapter: FakeAdapter, articles: list[Article]) -> None:
     assert len(page.items) == 1
 
 
-def test_query_callback_runs_after_other_constraints(adapter: FakeAdapter, articles: list[Article]) -> None:
+def test_query_callback_runs_after_other_constraints(
+    adapter: FakeAdapter, articles: list[Article]
+) -> None:
     engine = DatabaseEngine()
     seen_length = {}
 
@@ -76,7 +86,9 @@ def test_prefix_strategy_only_matches_start_of_string() -> None:
     assert engine.get(mid_string_only) == []
 
 
-def test_update_delete_flush_are_inert_noops(adapter: FakeAdapter, articles: list[Article]) -> None:
+def test_update_delete_flush_are_inert_noops(
+    adapter: FakeAdapter, articles: list[Article]
+) -> None:
     engine = DatabaseEngine()
     engine.update(articles, adapter)
     engine.delete(articles, adapter)

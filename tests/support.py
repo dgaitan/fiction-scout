@@ -8,8 +8,9 @@ correct independent of any ORM.
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
-from typing import Any, Iterator, Sequence
+from typing import Any
 
 from fiction_scout.strategies import SearchStrategy, get_column_strategies
 
@@ -85,11 +86,17 @@ class FakeAdapter:
     def apply_where(self, query: list[Any], field: str, value: Any) -> list[Any]:
         return [instance for instance in query if getattr(instance, field) == value]
 
-    def apply_where_in(self, query: list[Any], field: str, values: Sequence[Any]) -> list[Any]:
+    def apply_where_in(
+        self, query: list[Any], field: str, values: Sequence[Any]
+    ) -> list[Any]:
         return [instance for instance in query if getattr(instance, field) in values]
 
-    def apply_where_not_in(self, query: list[Any], field: str, values: Sequence[Any]) -> list[Any]:
-        return [instance for instance in query if getattr(instance, field) not in values]
+    def apply_where_not_in(
+        self, query: list[Any], field: str, values: Sequence[Any]
+    ) -> list[Any]:
+        return [
+            instance for instance in query if getattr(instance, field) not in values
+        ]
 
     def apply_trashed_filter(
         self, query: list[Any], model: type, *, with_trashed: bool, only_trashed: bool
@@ -106,6 +113,8 @@ class FakeAdapter:
     def count_query(self, query: list[Any]) -> int:
         return len(query)
 
-    def paginate_query(self, query: list[Any], *, per_page: int, page: int) -> list[Any]:
+    def paginate_query(
+        self, query: list[Any], *, per_page: int, page: int
+    ) -> list[Any]:
         start = (page - 1) * per_page
         return query[start : start + per_page]

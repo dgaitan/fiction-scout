@@ -8,7 +8,8 @@ seam that makes a new ORM adapter a pure-addition change: see
 
 from __future__ import annotations
 
-from typing import Any, Callable, Iterator, Protocol, Sequence, runtime_checkable
+from collections.abc import Iterator, Sequence
+from typing import Any, Callable, Protocol, runtime_checkable
 
 
 @runtime_checkable

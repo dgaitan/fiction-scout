@@ -26,7 +26,7 @@ class Builder:
         callback: Callable[..., Any] | None = None,
     ) -> None:
         self.model = model
-        self.query = query
+        self.term = query
         self.engine = engine
         self.adapter = adapter
         self.callback = callback

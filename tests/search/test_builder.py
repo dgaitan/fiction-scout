@@ -31,7 +31,9 @@ def test_defaults_are_empty(adapter: FakeAdapter) -> None:
     assert builder.only_trashed_ is False
 
 
-def test_with_trashed_and_only_trashed_are_mutually_exclusive(adapter: FakeAdapter) -> None:
+def test_with_trashed_and_only_trashed_are_mutually_exclusive(
+    adapter: FakeAdapter,
+) -> None:
     builder = _builder(adapter)
     builder.with_trashed()
     assert (builder.with_trashed_, builder.only_trashed_) == (True, False)

@@ -65,7 +65,9 @@ class EngineManager:
         try:
             return self._registry.resolve(resolved_name)
         except KeyError:
-            raise UnknownDriverError(resolved_name, self._registry.available()) from None
+            raise UnknownDriverError(
+                resolved_name, self._registry.available()
+            ) from None
 
     def forget_engines(self) -> None:
         """Drop all cached engine instances so the next `.driver()` rebuilds them."""

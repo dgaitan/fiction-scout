@@ -20,9 +20,11 @@ if TYPE_CHECKING:
 
 @dataclass
 class _DatabaseSearchResult:
-    """This engine's raw result: a built, not-yet-executed query plus the
-    adapter needed to run it — `map`/`map_ids`/`get_total_count` all receive
-    this and unpack it, since a bare query object alone can't run itself.
+    """This engine's raw result type.
+
+    A built, not-yet-executed query plus the adapter needed to run it —
+    `map`/`map_ids`/`get_total_count` all receive this and unpack it, since a
+    bare query object alone can't run itself.
     """
 
     query: Any
@@ -44,8 +46,8 @@ class DatabaseEngine(Engine):
     def _build_query(self, builder: Builder) -> Any:
         adapter = builder.adapter
         query = adapter.query_all(builder.model)
-        if builder.query:
-            query = adapter.apply_search_term(query, builder.model, builder.query)
+        if builder.term:
+            query = adapter.apply_search_term(query, builder.model, builder.term)
         for field, value in builder.wheres.items():
             query = adapter.apply_where(query, field, value)
         for field, values in builder.where_ins.items():
@@ -64,13 +66,17 @@ class DatabaseEngine(Engine):
 
     def search(self, builder: Builder) -> _DatabaseSearchResult:
         """Build (but do not execute) the query for `builder`'s constraints."""
-        return _DatabaseSearchResult(query=self._build_query(builder), adapter=builder.adapter)
+        return _DatabaseSearchResult(
+            query=self._build_query(builder), adapter=builder.adapter
+        )
 
     def paginate(self, builder: Builder, per_page: int, page: int) -> Page:
         """Execute the built query and return one page of matching instances."""
         result = self.search(builder)
         total = result.adapter.count_query(result.query)
-        items = result.adapter.paginate_query(result.query, per_page=per_page, page=page)
+        items = result.adapter.paginate_query(
+            result.query, per_page=per_page, page=page
+        )
         return Page(items, total=total, page=page, per_page=per_page)
 
     def map_ids(self, results: _DatabaseSearchResult) -> list[Any]:
@@ -78,7 +84,9 @@ class DatabaseEngine(Engine):
         instances = results.adapter.execute_query(results.query)
         return [results.adapter.get_scout_key(instance) for instance in instances]
 
-    def map(self, builder: Builder, results: _DatabaseSearchResult, model: type) -> list[Any]:
+    def map(
+        self, builder: Builder, results: _DatabaseSearchResult, model: type
+    ) -> list[Any]:
         """Execute the query and return matching model instances directly.
 
         Unlike a third-party engine, there's no separate "look up ids, then

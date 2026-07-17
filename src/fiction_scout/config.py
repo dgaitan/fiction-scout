@@ -93,7 +93,7 @@ _RESOLVERS: list[Callable[[], FictionScoutConfig | None]] = [
 
 
 def resolve_config(explicit: FictionScoutConfig | None = None) -> FictionScoutConfig:
-    """Resolve settings: explicit config, then Django, then Flask, then env, then defaults.
+    """Resolve settings: explicit, then Django, then Flask, then env, then defaults.
 
     An explicitly passed `FictionScoutConfig` always wins outright — nothing
     below it runs. Otherwise each resolver in `_RESOLVERS` runs in order; the

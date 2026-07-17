@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import contextlib
+from collections.abc import Iterator
 from contextvars import ContextVar
-from typing import Iterator
 
-_syncing_paused: ContextVar[bool] = ContextVar("fiction_scout_syncing_paused", default=False)
+_syncing_paused: ContextVar[bool] = ContextVar(
+    "fiction_scout_syncing_paused", default=False
+)
 
 
 def is_syncing_paused() -> bool:

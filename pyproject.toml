@@ -64,6 +64,8 @@ target-version = "py39"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "D"]
 ignore = [
+    "D105", # magic-method docstring -- dunder behavior is self-explanatory
+    "D107", # __init__ docstring -- the class docstring already covers it
     "D203", # one-blank-line-before-class -- conflicts with D211
     "D213", # multi-line-summary-second-line -- conflicts with D212
 ]
@@ -90,7 +92,11 @@ module = "fiction_scout.adapters.sqlalchemy.*"
 strict = false
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "tests.django_app.settings"
+# DJANGO_SETTINGS_MODULE is intentionally not set here: pytest-django loads
+# it eagerly at collection time, which would break every non-Django test run
+# when Django isn't installed. Set it via the DJANGO_SETTINGS_MODULE env var
+# (see noxfile.py's test_django session) only when actually running the
+# Django adapter's test suite.
 markers = [
     "django: tests requiring the Django adapter/extra",
     "sqlalchemy: tests requiring the SQLAlchemy adapter/extra",

@@ -37,7 +37,13 @@ def test_core(session: nox.Session) -> None:
 def test_django(session: nox.Session) -> None:
     """Run the Django adapter test suite."""
     session.install("-e", ".[dev,django]")
-    session.run("pytest", "tests", "-m", "django")
+    session.run(
+        "pytest",
+        "tests",
+        "-m",
+        "django",
+        env={"DJANGO_SETTINGS_MODULE": "tests.django_app.settings"},
+    )
 
 
 @nox.session(python=PYTHON_VERSIONS)

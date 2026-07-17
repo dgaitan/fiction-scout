@@ -32,7 +32,7 @@ class SearchStrategy(enum.Enum):
 def _apply_strategy(strategy: SearchStrategy, *columns: str) -> Callable[[F], F]:
     def decorator(fn: F) -> F:
         existing: dict[str, SearchStrategy] = dict(getattr(fn, _STRATEGY_ATTR, {}))
-        existing.update({column: strategy for column in columns})
+        existing.update(dict.fromkeys(columns, strategy))
         setattr(fn, _STRATEGY_ATTR, existing)
         return fn
 

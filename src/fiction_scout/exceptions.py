@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 
 class FictionScoutError(Exception):
@@ -28,7 +28,9 @@ class UnknownDriverError(FictionScoutError):
     def __init__(self, name: str, available: Sequence[str]) -> None:
         self.name = name
         self.available = list(available)
-        available_text = ", ".join(self.available) if self.available else "none registered"
+        available_text = (
+            ", ".join(self.available) if self.available else "none registered"
+        )
         super().__init__(
             f"Unknown driver '{name}'. Available drivers: {available_text}. "
             "Register a new one with EngineManager.extend(name, factory)."

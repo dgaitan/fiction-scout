@@ -41,7 +41,9 @@ class CollectionEngine(Engine):
                 array = adapter.to_searchable_array(instance)
                 if not self._matches_constraints(array, builder):
                     continue
-                matches.append({**array, _SCOUT_KEY_FIELD: adapter.get_scout_key(instance)})
+                matches.append(
+                    {**array, _SCOUT_KEY_FIELD: adapter.get_scout_key(instance)}
+                )
         return matches
 
     @staticmethod
@@ -56,7 +58,7 @@ class CollectionEngine(Engine):
         return not deleted
 
     def _matches_constraints(self, array: dict[str, Any], builder: Builder) -> bool:
-        if builder.query and not self._contains_query(array, builder.query):
+        if builder.term and not self._contains_query(array, builder.term):
             return False
         for field, value in builder.wheres.items():
             if array.get(field) != value:
@@ -78,13 +80,20 @@ class CollectionEngine(Engine):
         """Return one page of matching results."""
         results = self.search(builder)
         start = (page - 1) * per_page
-        return Page(results[start : start + per_page], total=len(results), page=page, per_page=per_page)
+        return Page(
+            results[start : start + per_page],
+            total=len(results),
+            page=page,
+            per_page=per_page,
+        )
 
     def map_ids(self, results: list[dict[str, Any]]) -> list[Any]:
         """Extract scout keys from `search()`'s results, in order."""
         return [record[_SCOUT_KEY_FIELD] for record in results]
 
-    def map(self, builder: Builder, results: list[dict[str, Any]], model: type) -> list[Any]:
+    def map(
+        self, builder: Builder, results: list[dict[str, Any]], model: type
+    ) -> list[Any]:
         """Fetch and return model instances for `results`, preserving match order."""
         adapter = builder.adapter
         ids = self.map_ids(results)
