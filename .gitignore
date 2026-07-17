@@ -16,3 +16,6 @@ htmlcov/
 *.sqlite3
 .DS_Store
 .claude/settings.local.json
+skills-lock.json
+.claude/
+.agents/

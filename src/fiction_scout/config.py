@@ -48,7 +48,7 @@ def _from_mapping(data: dict[str, Any]) -> FictionScoutConfig:
 
 def _resolve_django() -> FictionScoutConfig | None:
     try:
-        from django.conf import settings  # type: ignore[import-not-found]
+        from django.conf import settings
     except ImportError:
         return None
     if not settings.configured:
@@ -61,7 +61,7 @@ def _resolve_django() -> FictionScoutConfig | None:
 
 def _resolve_flask() -> FictionScoutConfig | None:
     try:
-        from flask import current_app  # type: ignore[import-not-found]
+        from flask import current_app
     except ImportError:
         return None
     try:
