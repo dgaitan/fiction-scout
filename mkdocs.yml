@@ -22,6 +22,10 @@ theme:
 
 nav:
   - Home: index.md
+  - Usage:
+      - Configuration: configuration.md
+      - Indexing: indexing.md
+      - Searching: searching.md
   - Engines:
       - database: engines/database.md
       - collection: engines/collection.md

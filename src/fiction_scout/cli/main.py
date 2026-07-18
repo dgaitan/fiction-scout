@@ -11,6 +11,8 @@ from typing import Callable
 import click
 
 from fiction_scout.cli.commands import (
+    create_index,
+    delete_index,
     flush,
     import_cmd,
     queue_import,
@@ -57,3 +59,17 @@ def flush_command(model: str) -> None:
 def sync_index_settings_command(model: str) -> None:
     """Apply MODEL's configured index settings to its search driver."""
     _run(sync_index_settings.run_sync_index_settings, model)
+
+
+@cli.command(name="create-index")
+@click.argument("model")
+def create_index_command(model: str) -> None:
+    """Create MODEL's search index, if its driver supports it."""
+    _run(create_index.run_create_index, model)
+
+
+@cli.command(name="delete-index")
+@click.argument("model")
+def delete_index_command(model: str) -> None:
+    """Delete MODEL's search index."""
+    _run(delete_index.run_delete_index, model)

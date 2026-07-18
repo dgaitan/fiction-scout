@@ -58,7 +58,7 @@ class EngineManager:
         extra = self._config.extra
         app_id = extra.get("algolia_app_id") or os.environ.get("ALGOLIA_APP_ID", "")
         api_key = extra.get("algolia_api_key") or os.environ.get("ALGOLIA_API_KEY", "")
-        return AlgoliaEngine(app_id, api_key)
+        return AlgoliaEngine(app_id, api_key, index_prefix=self._config.index_prefix)
 
     def _build_meilisearch_engine(self) -> Engine:
         # Same lazy-import rationale as `_build_algolia_engine` above.
@@ -73,7 +73,7 @@ class EngineManager:
         api_key = extra.get("meilisearch_api_key") or os.environ.get(
             "MEILISEARCH_API_KEY", ""
         )
-        return MeilisearchEngine(url, api_key)
+        return MeilisearchEngine(url, api_key, index_prefix=self._config.index_prefix)
 
     def extend(self, name: str, factory: Callable[[], Engine]) -> None:
         """Register `factory` as the driver named `name`.

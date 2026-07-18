@@ -132,6 +132,8 @@ class SpyEngine(Engine):
     updated_batches: list[list[Any]] = field(default_factory=list)
     deleted_batches: list[list[Any]] = field(default_factory=list)
     flushed: list[type] = field(default_factory=list)
+    created_indexes: list[str] = field(default_factory=list)
+    deleted_indexes: list[str] = field(default_factory=list)
 
     def update(self, models: list[Any], adapter: Any) -> None:
         self.updated_batches.append(list(models))
@@ -141,6 +143,12 @@ class SpyEngine(Engine):
 
     def flush(self, model: type, adapter: Any) -> None:
         self.flushed.append(model)
+
+    def create_index(self, name: str, **options: Any) -> None:
+        self.created_indexes.append(name)
+
+    def delete_index(self, name: str) -> None:
+        self.deleted_indexes.append(name)
 
     def search(self, builder: Any) -> Any:
         return []
@@ -202,6 +210,7 @@ class FakeAlgoliaClient:
         self.cleared: list[str] = []
         self.deleted_indexes: list[str] = []
         self.search_calls: list[tuple[str, dict[str, Any]]] = []
+        self.settings_updated: list[tuple[str, dict[str, Any]]] = []
         self._search_hits = search_hits or []
         self._nb_hits = nb_hits
 
@@ -221,6 +230,9 @@ class FakeAlgoliaClient:
 
     def delete_index(self, *, index_name: str) -> None:
         self.deleted_indexes.append(index_name)
+
+    def set_settings(self, *, index_name: str, index_settings: dict[str, Any]) -> None:
+        self.settings_updated.append((index_name, dict(index_settings)))
 
     def search_single_index(
         self, *, index_name: str, search_params: dict[str, Any]
@@ -279,6 +291,10 @@ class FakeMeilisearchIndex:
         self._client.cleared.append(self.uid)
         return MeilisearchTask()
 
+    def update_settings(self, body: dict[str, Any]) -> MeilisearchTask:
+        self._client.settings_updated.append((self.uid, dict(body)))
+        return MeilisearchTask()
+
     def search(
         self, query: str, opt_params: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -316,6 +332,7 @@ class FakeMeilisearchClient:
         self.created: list[tuple[str, dict[str, Any] | None]] = []
         self.deleted_indexes: list[str] = []
         self.waited_task_uids: list[int] = []
+        self.settings_updated: list[tuple[str, dict[str, Any]]] = []
         self.search_calls: list[tuple[str, str, dict[str, Any]]] = []
         self._search_hits = search_hits or []
         self._estimated_total_hits = estimated_total_hits

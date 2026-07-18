@@ -86,16 +86,19 @@ translate these into their own filter syntax yet.
 ## Configuration
 
 `FICTION_SCOUT` (Django settings, Flask app config, or a `FICTION_SCOUT_*`
-environment variable prefix) accepts:
+environment variable prefix) accepts `driver`, `chunk_size`, `index_prefix`,
+and driver-specific keys under `extra` — plus two fields (`soft_delete`,
+`queue`) that are parsed but not currently wired to any behavior. See
+[Configuration](configuration.md) for the full reference, including exactly
+what does and doesn't work today.
 
-| Key | Default | Meaning |
-|---|---|---|
-| `driver` | `"database"` | Which registered `Engine` to use — `database`, `collection`, `algolia`, `meilisearch`, or a name registered via `EngineManager.extend()` |
-| `soft_delete` | `False` | Whether soft-deleted records should be excluded by default |
-| `chunk_size` | `500` | Batch size for `chunk_records`/bulk sync operations |
-| `queue` | `False` | Whether to route sync writes through a background `Dispatcher` |
-| `index_prefix` | `""` | Prefix applied to index/table names |
-| anything else | — | Driver-specific settings (e.g. `algolia_app_id`, `meilisearch_url`) land in `FictionScoutConfig.extra` |
+## Indexing and searching
+
+- [Indexing](indexing.md) — auto-sync on save/delete, batch import, pausing
+  sync during bulk operations, conditionally searchable instances, soft
+  delete.
+- [Searching](searching.md) — where clauses (including the real Algolia/
+  Meilisearch filter translation), custom indexes, pagination, raw results.
 
 ## Pausing sync
 
@@ -122,6 +125,8 @@ fiction-scout import myapp.models.Post              # push every existing row
 fiction-scout queue-import myapp.models.Post         # same, via the configured dispatcher
 fiction-scout flush myapp.models.Post                # remove all index entries, leave rows alone
 fiction-scout sync-index-settings myapp.models.Post  # apply driver-specific index settings
+fiction-scout create-index myapp.models.Post         # create the index, if the driver supports it
+fiction-scout delete-index myapp.models.Post         # delete the index entirely
 ```
 
 Under Django, the same four subcommands are available as

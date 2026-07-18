@@ -30,15 +30,41 @@ FICTION_SCOUT = {
   `AlgoliaEngine::createIndex()`, which throws for the same reason.
 - `delete_index()` maps directly to the client's `delete_index`, which
   Algolia does support.
+- `.where()`/`.where_in()`/`.where_not_in()` translate into Algolia's
+  `filters` syntax — see [Searching: where clauses](../searching.md#where-clauses)
+  for the full translation table.
+
+## Index settings
+
+```python
+FICTION_SCOUT = {
+    "driver": "algolia",
+    "algolia_app_id": "...",
+    "algolia_api_key": "...",
+    "searchable_attributes": ["title", "body"],
+    "custom_ranking": ["desc(views)"],
+}
+```
+
+```bash
+fiction-scout sync-index-settings myapp.models.Post
+```
+
+`update_index_settings` calls Algolia's `set_settings`. The accepted key
+whitelist is read directly from the installed `algoliasearch` SDK's own
+`IndexSettings` model fields (`searchable_attributes`,
+`attributes_for_faceting`, `custom_ranking`, `ranking`, and every other field
+that model defines) rather than hand-maintained, so it can't drift out of
+sync with whatever SDK version is installed. Any other key present in
+`config.extra` — including unrelated connection settings like
+`meilisearch_url` — is silently ignored rather than sent.
 
 ## Known v1 limitations
 
-- **`Builder.where()`/`.where_in()`/`.where_not_in()` are not translated**
-  into Algolia's `filters`/`facetFilters` syntax — a `.where()` call against
-  this driver returns unfiltered results, not an error.
 - **Soft-deleted records are removed from the index entirely**, not tagged
   and kept — `with_trashed()`/`only_trashed()` only work against the
-  `database` engine.
+  `database`/`collection` engines. See
+  [Indexing: soft delete](../indexing.md#soft-delete).
 
 ## Testing
 

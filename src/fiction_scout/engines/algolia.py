@@ -32,14 +32,20 @@ stay database-engine-only, confirmed with the user 2026-07-18. No
 `__soft_deleted` metadata is written; a soft-deleted instance is removed
 from this index entirely via the existing `make_unsearchable` path.
 
-**Known, documented limitation — `where`/`where_in`/`where_not_in` are not
-translated to Algolia filters in v1:** this module's own Gherkin specs
-cover term search, create/delete/flush, and the empty-searchable-array
-exclusion — none of them exercise `Builder.where*`. Wiring those into
-Algolia's `filters`/`facetFilters` syntax is real, non-trivial work outside
-that scope; a caller using `.where()` against the `algolia` driver today
-gets unfiltered results back, not an error. Revisit before shipping
-`.where()` support for this driver.
+**`where`/`where_in`/`where_not_in` translate to Algolia's `filters` syntax:**
+`_filters()` mirrors Laravel Scout's `AlgoliaEngine::filters()` — see that
+method's docstring for the exact translation rules and the sentinel/
+combinator choices it reproduces.
+
+**`update_index_settings` has a real API, unlike `create_index`:** Algolia's
+lack of an index-creation endpoint doesn't extend to settings — `set_settings`
+is a real call. The whitelist of accepted keys is read straight off the
+installed `algoliasearch` SDK's own `IndexSettings` model fields rather than
+hand-maintained, so it can't silently drift from whatever version of the SDK
+is actually installed; see `update_index_settings`'s own inline comment and
+`MeilisearchEngine.update_index_settings`'s docstring paragraph for why
+unrelated `config.extra` keys (like `meilisearch_url`) need to be dropped
+rather than sent, here too.
 
 **Scout key / Algolia `objectID` type mismatch:** Algolia requires
 `objectID` to be a string. A model's own scout key may not be (an integer
@@ -88,6 +94,7 @@ class AlgoliaEngine(Engine):
         api_key: str = "",
         *,
         client: SearchClientSync | None = None,
+        index_prefix: str = "",
     ) -> None:
         require_installed(
             feature="algolia", module_name="algoliasearch", extra="algolia"
@@ -97,11 +104,15 @@ class AlgoliaEngine(Engine):
 
             client = SearchClientSync(app_id, api_key)
         self._client = client
+        self._index_prefix = index_prefix
+
+    def index_name_for(self, model: type, adapter: SearchableAdapter) -> str:
+        return f"{self._index_prefix}{adapter.searchable_as(model)}"
 
     def update(self, models: list[Any], adapter: SearchableAdapter) -> None:
         if not models:
             return
-        index_name = adapter.searchable_as(type(models[0]))
+        index_name = self.index_name_for(type(models[0]), adapter)
         records = [
             {**array, "objectID": str(adapter.get_scout_key(instance))}
             for instance in models
@@ -114,12 +125,12 @@ class AlgoliaEngine(Engine):
     def delete(self, models: list[Any], adapter: SearchableAdapter) -> None:
         if not models:
             return
-        index_name = adapter.searchable_as(type(models[0]))
+        index_name = self.index_name_for(type(models[0]), adapter)
         object_ids = [str(adapter.get_scout_key(instance)) for instance in models]
         self._client.delete_objects(index_name=index_name, object_ids=object_ids)
 
     def flush(self, model: type, adapter: SearchableAdapter) -> None:
-        self._client.clear_objects(index_name=adapter.searchable_as(model))
+        self._client.clear_objects(index_name=self.index_name_for(model, adapter))
 
     def create_index(self, name: str, **options: Any) -> None:
         raise IndexCreationNotSupportedError(
@@ -131,19 +142,68 @@ class AlgoliaEngine(Engine):
     def delete_index(self, name: str) -> None:
         self._client.delete_index(index_name=name)
 
+    def update_index_settings(
+        self, model: type, adapter: SearchableAdapter, **settings: Any
+    ) -> None:
+        from algoliasearch.search.models.index_settings import IndexSettings
+
+        # `IndexSettings.model_fields` is the SDK's own source of truth for
+        # what a settings payload accepts, so this whitelist can't drift out
+        # of sync with the installed `algoliasearch` version the way a
+        # hand-maintained key list could. Everything else — including
+        # unrelated `config.extra` keys like `algolia_app_id` that the CLI's
+        # `sync-index-settings` command splats in alongside real settings —
+        # is dropped, not sent. See `MeilisearchEngine.update_index_settings`
+        # for the same pattern applied to a client without a typed model.
+        known_fields = set(IndexSettings.model_fields.keys())
+        payload = {key: value for key, value in settings.items() if key in known_fields}
+        if not payload:
+            return
+        index_name = self.index_name_for(model, adapter)
+        self._client.set_settings(index_name=index_name, index_settings=payload)
+
     def _index_name(self, builder: Builder) -> str:
-        return builder.index or builder.adapter.searchable_as(builder.model)
+        return builder.index or self.index_name_for(builder.model, builder.adapter)
+
+    def _filters(self, builder: Builder) -> str:
+        """Translate `Builder.where*` into Algolia's `filters` syntax.
+
+        Mirrors Laravel Scout's `AlgoliaEngine::filters()` exactly (same
+        `'0:1'` always-false sentinel for an empty `where_in`, same `(NOT
+        field:'v1' OR NOT field:'v2')` combinator for `where_not_in`) — our
+        `Builder.where()` only ever expresses equality, unlike Laravel's
+        3-arg form, so the operator-branching half of their method doesn't
+        apply here.
+        """
+        clauses = [f"{column}:'{value}'" for column, value in builder.wheres.items()]
+        for column, values in builder.where_ins.items():
+            if not values:
+                clauses.append("0:1")
+                continue
+            clauses.append(
+                "(" + " OR ".join(f"{column}:'{value}'" for value in values) + ")"
+            )
+        for column, values in builder.where_not_ins.items():
+            if not values:
+                continue
+            clauses.append(
+                "(" + " OR ".join(f"NOT {column}:'{value}'" for value in values) + ")"
+            )
+        return " AND ".join(clauses)
 
     def _run_search(
         self, builder: Builder, *, page: int, hits_per_page: int
     ) -> _AlgoliaSearchResult:
+        search_params: dict[str, Any] = {
+            "query": builder.term,
+            "page": page,
+            "hitsPerPage": hits_per_page,
+        }
+        filters = self._filters(builder)
+        if filters:
+            search_params["filters"] = filters
         response = self._client.search_single_index(
-            index_name=self._index_name(builder),
-            search_params={
-                "query": builder.term,
-                "page": page,
-                "hitsPerPage": hits_per_page,
-            },
+            index_name=self._index_name(builder), search_params=search_params
         )
         return _AlgoliaSearchResult(
             hits=list(response.hits), total=response.nb_hits or 0

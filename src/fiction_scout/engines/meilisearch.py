@@ -28,18 +28,32 @@ whose contract is idempotency needs the completion guarantee.
 same v1 decision as `AlgoliaEngine` — no `__soft_deleted` filterable
 attribute, `with_trashed()`/`only_trashed()` stay database-engine-only.
 
-**Known, documented limitation — `where`/`where_in`/`where_not_in` are not
-translated to Meilisearch filters in v1:** same scope boundary as
-`AlgoliaEngine`; wiring `Builder.where*` into Meilisearch's `filter` syntax
-is real, non-trivial work outside v1's scope.
+**`where`/`where_in`/`where_not_in` translate to Meilisearch's `filter`
+syntax:** `_filters()` mirrors Laravel Scout's `MeilisearchEngine::filters()`
+— see that method's docstring for the exact value-formatting and combinator
+rules it reproduces. As with Laravel's own implementation, using `.where()`
+against a field that isn't a configured filterable attribute fails at the
+Meilisearch API level, not in this module — see the "Index settings"
+section once `update_index_settings` exists for this driver.
 
 **`delete_documents(ids=...)` triggers a `DeprecationWarning` from the
 client itself** (in favor of `filter=`), left as-is because filtering by the
 primary key requires that field to be a configured filterable attribute —
 verified against a real server (`filter="id = 1"` fails with a task-level
-error on a fresh index) — and index-settings management for this driver is
-explicitly out of scope for v1. Revisit together if/when
-`update_index_settings` is implemented for Meilisearch.
+error on a fresh index).
+
+**`update_index_settings` whitelists known Meilisearch settings keys and
+silently ignores the rest:** the CLI's `sync-index-settings` command
+(`cli/commands/sync_index_settings.py`) splats fiction-scout's *entire*
+`config.extra` dict as kwargs into this method — including connection
+settings like `meilisearch_url`/`meilisearch_api_key` that have nothing to
+do with index settings. `_MEILISEARCH_SETTINGS_KEYS` maps the snake_case
+keys this project's config convention uses (`filterable_attributes`, etc.)
+to the camelCase keys Meilisearch's REST API expects, and anything not in
+that map — including those connection keys — is dropped rather than sent,
+mirroring Laravel's `MeilisearchEngine::updateIndexSettings()`, which only
+ever receives its own `index-settings` config sub-array in the first place.
+Waits for the settings task to finish, same rationale as `create_index`.
 
 **No `objectID`-style key normalization needed:** unlike Algolia (which
 requires a string `objectID`), Meilisearch's primary key can be any string
@@ -71,6 +85,29 @@ if TYPE_CHECKING:
 # default.
 _MAX_HITS = 1000
 
+# snake_case (this project's config convention) -> camelCase (Meilisearch's
+# REST API) for every top-level key `index.update_settings()` accepts. Keys
+# passed to `update_index_settings` that aren't in this map are dropped, not
+# sent — see the module docstring's "Index settings" note.
+_MEILISEARCH_SETTINGS_KEYS: dict[str, str] = {
+    "searchable_attributes": "searchableAttributes",
+    "filterable_attributes": "filterableAttributes",
+    "sortable_attributes": "sortableAttributes",
+    "ranking_rules": "rankingRules",
+    "distinct_attribute": "distinctAttribute",
+    "stop_words": "stopWords",
+    "synonyms": "synonyms",
+    "typo_tolerance": "typoTolerance",
+    "pagination": "pagination",
+    "faceting": "faceting",
+    "embedders": "embedders",
+    "separator_tokens": "separatorTokens",
+    "non_separator_tokens": "nonSeparatorTokens",
+    "dictionary": "dictionary",
+    "proximity_precision": "proximityPrecision",
+    "search_cutoff_ms": "searchCutoffMs",
+}
+
 
 @dataclass
 class _MeilisearchSearchResult:
@@ -96,6 +133,7 @@ class MeilisearchEngine(Engine):
         api_key: str = "",
         *,
         client: Client | None = None,
+        index_prefix: str = "",
     ) -> None:
         require_installed(
             feature="meilisearch", module_name="meilisearch", extra="meilisearch"
@@ -105,6 +143,10 @@ class MeilisearchEngine(Engine):
 
             client = MeilisearchClient(url, api_key or None)
         self._client = client
+        self._index_prefix = index_prefix
+
+    def index_name_for(self, model: type, adapter: SearchableAdapter) -> str:
+        return f"{self._index_prefix}{adapter.searchable_as(model)}"
 
     def update(self, models: list[Any], adapter: SearchableAdapter) -> None:
         if not models:
@@ -117,19 +159,19 @@ class MeilisearchEngine(Engine):
         ]
         if not documents:
             return
-        index_name = adapter.searchable_as(model)
+        index_name = self.index_name_for(model, adapter)
         primary_key = adapter.get_scout_key_name(model)
         self._client.index(index_name).add_documents(documents, primary_key=primary_key)
 
     def delete(self, models: list[Any], adapter: SearchableAdapter) -> None:
         if not models:
             return
-        index_name = adapter.searchable_as(type(models[0]))
+        index_name = self.index_name_for(type(models[0]), adapter)
         ids = [adapter.get_scout_key(instance) for instance in models]
         self._client.index(index_name).delete_documents(ids)
 
     def flush(self, model: type, adapter: SearchableAdapter) -> None:
-        self._client.index(adapter.searchable_as(model)).delete_all_documents()
+        self._client.index(self.index_name_for(model, adapter)).delete_all_documents()
 
     def create_index(self, name: str, **options: Any) -> None:
         from meilisearch.errors import MeilisearchApiError
@@ -149,8 +191,57 @@ class MeilisearchEngine(Engine):
     def delete_index(self, name: str) -> None:
         self._client.delete_index(name)
 
+    def update_index_settings(
+        self, model: type, adapter: SearchableAdapter, **settings: Any
+    ) -> None:
+        payload = {
+            _MEILISEARCH_SETTINGS_KEYS[key]: value
+            for key, value in settings.items()
+            if key in _MEILISEARCH_SETTINGS_KEYS
+        }
+        if not payload:
+            return
+        index_name = self.index_name_for(model, adapter)
+        task = self._client.index(index_name).update_settings(payload)
+        self._client.wait_for_task(task.task_uid)
+
     def _index_name(self, builder: Builder) -> str:
-        return builder.index or builder.adapter.searchable_as(builder.model)
+        return builder.index or self.index_name_for(builder.model, builder.adapter)
+
+    def _filters(self, builder: Builder) -> str:
+        """Translate `Builder.where*` into Meilisearch's `filter` syntax.
+
+        Mirrors Laravel Scout's `MeilisearchEngine::filters()` value-type
+        handling (bool -> `true`/`false`, `None` -> `IS NULL`, numeric ->
+        bare, else double-quoted string) and its `field IN [...]`/`field NOT
+        IN [...]` combinators for `where_in`/`where_not_in`. Our `Builder`
+        never carries Laravel's `BackedEnum` values, so that branch doesn't
+        port over. An empty `where_in`/`where_not_in` list contributes no
+        clause (unlike Algolia's `'0:1'` sentinel) since Meilisearch's `IN
+        []`/`NOT IN []` are valid, unambiguous filter expressions on their
+        own — no sentinel is needed to force a false/true match.
+        """
+
+        def format_value(value: Any) -> str:
+            if isinstance(value, bool):
+                return "true" if value else "false"
+            if isinstance(value, (int, float)):
+                return str(value)
+            return f'"{value}"'
+
+        clauses = []
+        for column, value in builder.wheres.items():
+            if value is None:
+                clauses.append(f"{column} IS NULL")
+            else:
+                clauses.append(f"{column} = {format_value(value)}")
+        for column, values in builder.where_ins.items():
+            joined = ", ".join(format_value(value) for value in values)
+            clauses.append(f"{column} IN [{joined}]")
+        for column, values in builder.where_not_ins.items():
+            joined = ", ".join(format_value(value) for value in values)
+            clauses.append(f"{column} NOT IN [{joined}]")
+        return " AND ".join(clauses)
 
     def _run_search(
         self, builder: Builder, *, offset: int, limit: int
@@ -158,9 +249,13 @@ class MeilisearchEngine(Engine):
         from meilisearch.errors import MeilisearchApiError
 
         primary_key_field = builder.adapter.get_scout_key_name(builder.model)
+        params: dict[str, Any] = {"offset": offset, "limit": limit}
+        filters = self._filters(builder)
+        if filters:
+            params["filter"] = filters
         try:
             response = self._client.index(self._index_name(builder)).search(
-                builder.term, {"offset": offset, "limit": limit}
+                builder.term, params
             )
         except MeilisearchApiError as error:
             # A model with nothing indexed yet (no sync has run) has no

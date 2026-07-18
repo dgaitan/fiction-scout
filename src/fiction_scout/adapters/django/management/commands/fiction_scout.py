@@ -5,6 +5,8 @@ from typing import Any, Callable
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
 from fiction_scout.cli.commands import (
+    create_index,
+    delete_index,
     flush,
     import_cmd,
     queue_import,
@@ -17,6 +19,8 @@ _SUBCOMMANDS: dict[str, Callable[[str], None]] = {
     "queue-import": queue_import.run_queue_import,
     "flush": flush.run_flush,
     "sync-index-settings": sync_index_settings.run_sync_index_settings,
+    "create-index": create_index.run_create_index,
+    "delete-index": delete_index.run_delete_index,
 }
 
 

@@ -76,6 +76,17 @@ class Engine(abc.ABC):
     def get_total_count(self, results: Any) -> int:
         """Extract the total match count from raw `results`."""
 
+    def index_name_for(self, model: type, adapter: SearchableAdapter) -> str:
+        """Resolve the final index/table name `model` reads and writes to.
+
+        Default is a passthrough to `adapter.searchable_as(model)` — correct
+        for `DatabaseEngine`/`CollectionEngine`, which query a real DB table
+        and must never see it prefixed. External-index drivers (Algolia,
+        Meilisearch) override this to prepend `FictionScoutConfig.index_prefix`,
+        mirroring Laravel Scout's `scout.prefix`.
+        """
+        return adapter.searchable_as(model)
+
     def create_index(self, name: str, **options: Any) -> None:  # noqa: B027
         """Create an index named `name`. No-op unless a driver overrides it."""
 

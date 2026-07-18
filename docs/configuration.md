@@ -1,0 +1,71 @@
+# Configuration
+
+`FictionScoutConfig` is resolved once per process and shared by every
+searchable model. Resolution order (`fiction_scout.config.resolve_config`):
+
+1. An explicitly-constructed `FictionScoutConfig` passed in code — always
+   wins outright.
+2. Django settings — a `FICTION_SCOUT = {...}` dict in `settings.py`.
+3. Flask app config — `app.config["FICTION_SCOUT"] = {...}`.
+4. Environment variables — `FICTION_SCOUT_DRIVER`, `FICTION_SCOUT_SOFT_DELETE`,
+   `FICTION_SCOUT_CHUNK_SIZE`, `FICTION_SCOUT_QUEUE`,
+   `FICTION_SCOUT_INDEX_PREFIX`.
+5. Bare defaults, if nothing above applies.
+
+The first resolver that finds applicable settings wins; nothing lower in the
+list runs.
+
+## Fields
+
+| Key | Default | Meaning |
+|---|---|---|
+| `driver` | `"database"` | Which registered `Engine` to use — `database`, `collection`, `algolia`, `meilisearch`, or a name registered via `EngineManager.extend()`. |
+| `chunk_size` | `500` | Batch size for `chunk_records`/bulk sync operations (`import`, signal-triggered auto-sync). |
+| `index_prefix` | `""` | Prepended to every index name **on external-index drivers only** (`algolia`, `meilisearch`) — mirrors Laravel Scout's `scout.prefix`. Lets multiple tenants/environments share one Algolia application or Meilisearch server without index-name collisions. Has no effect on `database`/`collection`, which query real DB tables by their real names, not a resolved "index name." An explicit `.within("some_index")` call bypasses the prefix entirely, same as it bypasses `searchable_as()` — see [Searching](searching.md). |
+| `extra` | `{}` | Anything not in the fields above lands here — driver-specific settings (`algolia_app_id`, `meilisearch_url`, index-settings keys — see below) all live in this one flat dict. |
+| `soft_delete` | `False` | **Parsed, currently unused.** Laravel's equivalent flag controls whether soft-deleted records stay tagged in-index; fiction-scout doesn't implement that behavior (see [Indexing: soft delete](indexing.md#soft-delete)) — what actually gates soft-delete behavior per model is the model's own `soft_delete_field` class variable, not this config key. |
+| `queue` | `False` | **Parsed, currently unused.** Nothing reads this field to auto-select a dispatcher — `runtime.get_dispatcher()` always returns a synchronous `SyncDispatcher()` for the Django adapter. To run sync operations through Celery instead, construct a `CeleryDispatcher` yourself and use the standalone CLI's `queue-import`, or wire it into your own adapter's `get_scout_dispatcher()`. |
+
+## Driver-specific `extra` keys
+
+```python
+FICTION_SCOUT = {
+    "driver": "algolia",
+    "algolia_app_id": "...",        # or ALGOLIA_APP_ID env var
+    "algolia_api_key": "...",       # or ALGOLIA_API_KEY env var
+}
+```
+
+```python
+FICTION_SCOUT = {
+    "driver": "meilisearch",
+    "meilisearch_url": "http://127.0.0.1:7700",  # or MEILISEARCH_URL env var
+    "meilisearch_api_key": "...",                # or MEILISEARCH_API_KEY env var
+}
+```
+
+Index-settings keys (`searchable_attributes`, `filterable_attributes`, etc.)
+also live in this same `extra` dict — see each engine's "Index settings"
+section ([algolia](engines/algolia.md#index-settings),
+[meilisearch](engines/meilisearch.md#index-settings)) for the full accepted
+key list per driver. The `sync-index-settings` CLI command passes the
+*entire* `extra` dict to the resolved engine; each engine's
+`update_index_settings` whitelists only the keys it recognizes and silently
+drops the rest (including unrelated connection keys like `algolia_app_id`
+when the driver is `meilisearch`, or vice versa).
+
+## Multi-tenancy with `index_prefix`
+
+```python
+FICTION_SCOUT = {
+    "driver": "meilisearch",
+    "index_prefix": f"{tenant_slug}_",
+}
+```
+
+Every index name Algolia/Meilisearch resolve for a model —
+on `update()`, `delete()`, `flush()`, `search()`, `create_index()` (via the
+`create-index` CLI command), and `sync-index-settings` — gets this prefix
+prepended. A single Algolia application or Meilisearch server can then host
+multiple tenants' indexes side by side (`tenant_a_articles`,
+`tenant_b_articles`, ...) without collisions.

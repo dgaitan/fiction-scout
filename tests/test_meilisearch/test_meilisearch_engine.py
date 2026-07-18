@@ -202,3 +202,220 @@ def test_given_meilisearch_configured_with_credentials_when_resolved_then_builds
     engine = manager.driver()
 
     assert isinstance(engine, MeilisearchEngine)
+
+
+def test_given_index_prefix_when_update_called_then_prefixed_index_name_used(
+    articles: list[Article], adapter: FakeAdapter
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client, index_prefix="tenant_a_")
+
+    engine.update([articles[0]], adapter)
+
+    index_name, _, _ = client.added[0]
+    assert index_name == "tenant_a_articles"
+
+
+def test_given_index_prefix_when_delete_and_flush_called_then_prefixed_index_name_used(
+    articles: list[Article], adapter: FakeAdapter
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client, index_prefix="tenant_a_")
+
+    engine.delete([articles[0]], adapter)
+    engine.flush(Article, adapter)
+
+    assert client.deleted == [("tenant_a_articles", [1])]
+    assert client.cleared == ["tenant_a_articles"]
+
+
+def test_given_index_prefix_when_search_called_then_prefixed_index_name_used(
+    adapter: FakeAdapter,
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client, index_prefix="tenant_a_")
+    builder = Builder(Article, "star", engine=engine, adapter=adapter)
+
+    builder.raw()
+
+    index_name, _, _ = client.search_calls[0]
+    assert index_name == "tenant_a_articles"
+
+
+def test_given_within_override_when_search_called_then_prefix_not_applied(
+    adapter: FakeAdapter,
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client, index_prefix="tenant_a_")
+    builder = Builder(Article, "star", engine=engine, adapter=adapter).within(
+        "custom_index"
+    )
+
+    builder.raw()
+
+    index_name, _, _ = client.search_calls[0]
+    assert index_name == "custom_index"
+
+
+def test_given_no_where_clauses_when_search_called_then_no_filter_key_sent(
+    adapter: FakeAdapter,
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client)
+    builder = Builder(Article, "star", engine=engine, adapter=adapter)
+
+    builder.raw()
+
+    _, _, params = client.search_calls[0]
+    assert "filter" not in params
+
+
+def test_given_where_clause_when_search_called_then_filter_translated(
+    adapter: FakeAdapter,
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client)
+    builder = Builder(Article, "star", engine=engine, adapter=adapter).where(
+        "status", "published"
+    )
+
+    builder.raw()
+
+    _, _, params = client.search_calls[0]
+    assert params["filter"] == 'status = "published"'
+
+
+def test_given_where_clause_value_types_when_search_called_then_formatted_per_type(
+    adapter: FakeAdapter,
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client)
+    builder = (
+        Builder(Article, "star", engine=engine, adapter=adapter)
+        .where("published", True)
+        .where("views", 42)
+        .where("archived_at", None)
+    )
+
+    builder.raw()
+
+    _, _, params = client.search_calls[0]
+    assert params["filter"] == (
+        "published = true AND views = 42 AND archived_at IS NULL"
+    )
+
+
+def test_given_where_in_clause_when_search_called_then_filter_translated(
+    adapter: FakeAdapter,
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client)
+    builder = Builder(Article, "star", engine=engine, adapter=adapter).where_in(
+        "category", ["scifi", "action"]
+    )
+
+    builder.raw()
+
+    _, _, params = client.search_calls[0]
+    assert params["filter"] == 'category IN ["scifi", "action"]'
+
+
+def test_given_where_not_in_clause_when_search_called_then_filter_translated(
+    adapter: FakeAdapter,
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client)
+    builder = Builder(Article, "star", engine=engine, adapter=adapter).where_not_in(
+        "category", ["horror"]
+    )
+
+    builder.raw()
+
+    _, _, params = client.search_calls[0]
+    assert params["filter"] == 'category NOT IN ["horror"]'
+
+
+def test_given_combined_where_clauses_when_search_called_then_joined_with_and(
+    adapter: FakeAdapter,
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client)
+    builder = (
+        Builder(Article, "star", engine=engine, adapter=adapter)
+        .where("status", "published")
+        .where_in("category", ["scifi"])
+    )
+
+    builder.raw()
+
+    _, _, params = client.search_calls[0]
+    assert params["filter"] == 'status = "published" AND category IN ["scifi"]'
+
+
+def test_given_known_settings_when_update_settings_called_then_client_invoked(
+    adapter: FakeAdapter,
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client)
+
+    engine.update_index_settings(
+        Article,
+        adapter,
+        filterable_attributes=["category"],
+        sortable_attributes=["views"],
+    )
+
+    assert client.settings_updated == [
+        (
+            "articles",
+            {"filterableAttributes": ["category"], "sortableAttributes": ["views"]},
+        )
+    ]
+    assert client.waited_task_uids == [0]
+
+
+def test_given_unrelated_config_keys_when_update_index_settings_called_then_ignored(
+    adapter: FakeAdapter,
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client)
+
+    engine.update_index_settings(
+        Article,
+        adapter,
+        meilisearch_url="http://localhost:7700",
+        algolia_app_id="unrelated",
+    )
+
+    assert client.settings_updated == []
+    assert client.waited_task_uids == []
+
+
+def test_given_index_prefix_when_update_index_settings_called_then_prefixed_index_used(
+    adapter: FakeAdapter,
+) -> None:
+    client = FakeMeilisearchClient()
+    engine = MeilisearchEngine(client=client, index_prefix="tenant_a_")
+
+    engine.update_index_settings(Article, adapter, filterable_attributes=["category"])
+
+    index_name, _ = client.settings_updated[0]
+    assert index_name == "tenant_a_articles"
+
+
+def test_given_index_prefix_in_config_when_resolved_then_prefix_wired() -> None:
+    manager = EngineManager(
+        FictionScoutConfig(
+            driver="meilisearch",
+            index_prefix="tenant_a_",
+            extra={
+                "meilisearch_url": "http://localhost:7700",
+                "meilisearch_api_key": "test-key",
+            },
+        )
+    )
+
+    engine = manager.driver()
+
+    assert isinstance(engine, MeilisearchEngine)
+    assert engine._index_prefix == "tenant_a_"

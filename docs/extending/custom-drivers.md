@@ -39,16 +39,23 @@ class MyEngine(Engine):
         """Extract the total match count from raw `results`."""
 ```
 
-Three more methods have default implementations you can override:
+Four more methods have default implementations you can override:
 
+- `index_name_for(model, adapter)` — defaults to
+  `adapter.searchable_as(model)`. Override this (not `searchable_as` itself,
+  which `database`/`collection` also rely on for their real table name) if
+  your driver is backed by a separate external index and should honor
+  `FictionScoutConfig.index_prefix` — see `AlgoliaEngine`/`MeilisearchEngine`
+  for the pattern, and [Configuration: multi-tenancy](../configuration.md#multi-tenancy-with-index_prefix).
 - `create_index(name, **options)` — no-ops by default.
 - `delete_index(name)` — no-ops by default.
 - `update_index_settings(model, adapter, **settings)` — **raises**
   `IndexSettingsNotSupportedError` by default, since the CLI's
   `sync-index-settings` command relies on that raise to report "this driver
   doesn't support settings" rather than silently doing nothing. Only
-  override this if your driver has a real settings API (Meilisearch does;
-  Algolia doesn't).
+  override this if your driver has a real settings API (both Algolia and
+  Meilisearch do — see their "Index settings" docs for the whitelist pattern
+  worth reusing).
 
 `Engine` also supplies two concrete convenience methods built on the
 abstract ones above — you don't implement these yourself:
@@ -167,5 +174,5 @@ before importing the SDK, so a missing package surfaces as a clear
 `src/fiction_scout/engines/meilisearch.py` are complete, tested drivers —
 each module's docstring records the design decisions specific to that
 backend (test strategy, index-creation semantics, soft-delete handling,
-known `where()`-translation gaps). Read one of those before starting a new
-driver; the shape is almost always the same.
+`where()`-filter translation, index-settings whitelisting). Read one of
+those before starting a new driver; the shape is almost always the same.

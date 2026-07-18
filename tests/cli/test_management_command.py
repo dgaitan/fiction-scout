@@ -38,6 +38,22 @@ def test_given_same_model_when_import_run_via_cli_and_management_command_then_id
     assert via_cli == via_management_command == ["Star Trek II", "Star Wars"]
 
 
+def test_given_same_model_when_delete_index_run_via_both_entry_points_then_identical(
+    spy_engine: SpyEngine,
+) -> None:
+    result = CliRunner().invoke(
+        cli, ["delete-index", "tests.django_app.models.Article"]
+    )
+    assert result.exit_code == 0
+    via_cli = list(spy_engine.deleted_indexes)
+
+    spy_engine.deleted_indexes.clear()
+    call_command("fiction_scout", "delete-index", "tests.django_app.models.Article")
+    via_management_command = list(spy_engine.deleted_indexes)
+
+    assert via_cli == via_management_command == [Article.searchable_as()]
+
+
 def test_given_invalid_subcommand_when_management_command_runs_then_raises_error() -> (
     None
 ):
