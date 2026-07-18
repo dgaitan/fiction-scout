@@ -54,3 +54,14 @@ class IndexSettingsNotSupportedError(FictionScoutError):
         super().__init__(
             f"The '{driver_name}' driver does not support index settings management."
         )
+
+
+class IndexCreationNotSupportedError(FictionScoutError):
+    """A driver has no explicit index-creation API to call."""
+
+    def __init__(self, driver_name: str, reason: str) -> None:
+        self.driver_name = driver_name
+        self.reason = reason
+        super().__init__(
+            f"The '{driver_name}' driver does not support create_index: {reason}"
+        )

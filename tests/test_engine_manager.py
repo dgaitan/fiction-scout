@@ -6,7 +6,7 @@ from fiction_scout.config import FictionScoutConfig
 from fiction_scout.engines.collection import CollectionEngine
 from fiction_scout.engines.database import DatabaseEngine
 from fiction_scout.engines.manager import EngineManager
-from fiction_scout.exceptions import UnknownDriverError
+from fiction_scout.exceptions import MissingDependencyError, UnknownDriverError
 
 
 def test_builtin_drivers_resolve() -> None:
@@ -23,10 +23,35 @@ def test_driver_defaults_to_configured_driver() -> None:
 def test_unknown_driver_raises_with_available_drivers_listed() -> None:
     manager = EngineManager()
     with pytest.raises(UnknownDriverError) as excinfo:
-        manager.driver("algolia")
-    assert "algolia" in str(excinfo.value)
-    assert "collection" in str(excinfo.value)
-    assert "database" in str(excinfo.value)
+        manager.driver("bogus-driver-name")
+    message = str(excinfo.value)
+    assert "bogus-driver-name" in message
+    assert "collection" in message
+    assert "database" in message
+    # "algolia" is a registered (lazy) driver name even without the SDK
+    # installed — only *selecting* it requires the extra, not registration.
+    assert "algolia" in message
+
+
+def test_algolia_driver_raises_missing_dependency_when_sdk_not_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Mocked, not environment-dependent — `test_all` installs every extra
+    # together, so this can't rely on `algoliasearch` actually being absent
+    # (same reasoning as the Celery dispatcher's equivalent test). What this
+    # proves is that `.driver()` raises via `validate_dependency` *before*
+    # ever importing `engines.algolia`, regardless of what's installed.
+    def _boom(feature: str, module_name: str, extra: str) -> None:
+        raise MissingDependencyError(feature=feature, package=module_name, extra=extra)
+
+    monkeypatch.setattr("fiction_scout.engines.manager.require_installed", _boom)
+
+    manager = EngineManager(FictionScoutConfig(driver="algolia"))
+    with pytest.raises(MissingDependencyError) as excinfo:
+        manager.driver()
+    message = str(excinfo.value)
+    assert "algoliasearch" in message
+    assert 'pip install "fiction-scout[algolia]"' in message
 
 
 def test_extend_registers_a_custom_driver() -> None:

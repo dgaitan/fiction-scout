@@ -22,6 +22,8 @@ if importlib.util.find_spec("sqlalchemy") is None:
     collect_ignore += ["sqlalchemy_app", "test_sqlalchemy"]
 if importlib.util.find_spec("celery") is None:
     collect_ignore += ["test_celery"]
+if importlib.util.find_spec("algoliasearch") is None:
+    collect_ignore += ["test_algolia"]
 
 
 @pytest.fixture

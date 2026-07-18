@@ -53,8 +53,12 @@ class FakeAdapter:
             yield self.records[start : start + chunk_size]
 
     def fetch_by_ids(self, model: type, ids: Sequence[Any]) -> list[Any]:
-        wanted = set(ids)
-        return [record for record in self.records if record.id in wanted]
+        # Compares by str() so ids that arrive as strings (e.g. from an
+        # external search index's document ids) still match integer
+        # `record.id` values, the same way a real ORM's `pk__in` lookup
+        # coerces a string id against an integer primary key column.
+        wanted = {str(i) for i in ids}
+        return [record for record in self.records if str(record.id) in wanted]
 
     def is_soft_deleted(self, instance: Any) -> bool:
         return instance.deleted_at is not None

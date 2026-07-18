@@ -18,7 +18,7 @@ def lint(session: nox.Session) -> None:
 @nox.session(python=PYTHON_VERSIONS[-1])
 def typecheck(session: nox.Session) -> None:
     """Run mypy against the core package."""
-    session.install("-e", ".[dev,django,sqlalchemy,celery]")
+    session.install("-e", ".[dev,django,sqlalchemy,celery,algolia]")
     session.run("mypy")
 
 
@@ -36,7 +36,12 @@ def test_core(session: nox.Session) -> None:
     SQLAlchemy — it must pass without either extra present.
     """
     session.install("-e", ".[dev]")
-    session.run("pytest", "tests", "-m", "not django and not sqlalchemy and not celery")
+    session.run(
+        "pytest",
+        "tests",
+        "-m",
+        "not django and not sqlalchemy and not celery and not algolia",
+    )
 
 
 @nox.session(python=PYTHON_VERSIONS)
@@ -66,10 +71,17 @@ def test_celery(session: nox.Session) -> None:
     session.run("pytest", "tests", "-m", "celery")
 
 
+@nox.session(python=PYTHON_VERSIONS)
+def test_algolia(session: nox.Session) -> None:
+    """Run the Algolia engine test suite."""
+    session.install("-e", ".[dev,algolia]")
+    session.run("pytest", "tests", "-m", "algolia")
+
+
 @nox.session(python=PYTHON_VERSIONS[-1])
 def test_all(session: nox.Session) -> None:
     """Run the full test suite with every extra installed."""
-    session.install("-e", ".[dev,django,sqlalchemy,celery]")
+    session.install("-e", ".[dev,django,sqlalchemy,celery,algolia]")
     session.run("pytest", "tests", "--cov=fiction_scout", "--cov-report=term-missing")
 
 

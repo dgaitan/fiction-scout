@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Callable
 
 from fiction_scout.config import FictionScoutConfig
@@ -12,7 +13,9 @@ from fiction_scout.registry import Registry
 
 # driver name -> (importable module to check for, pip extra to suggest).
 # Drivers with no external dependency (database, collection) aren't listed.
-_DRIVER_DEPENDENCIES: dict[str, tuple[str, str]] = {}
+_DRIVER_DEPENDENCIES: dict[str, tuple[str, str]] = {
+    "algolia": ("algoliasearch", "algolia"),
+}
 
 
 class EngineManager:
@@ -39,6 +42,21 @@ class EngineManager:
 
         self._registry.register("collection", CollectionEngine)
         self._registry.register("database", DatabaseEngine)
+        self._registry.register("algolia", self._build_algolia_engine)
+
+    def _build_algolia_engine(self) -> Engine:
+        # Imported here, not at module top level, so `EngineManager` itself
+        # never requires `algoliasearch` to be installed — only selecting
+        # the "algolia" driver does, and `validate_dependency` (called by
+        # `.driver()` before this factory ever runs) is what turns a missing
+        # SDK into a clear `MissingDependencyError` instead of a bare
+        # `ImportError` from in here.
+        from fiction_scout.engines.algolia import AlgoliaEngine
+
+        extra = self._config.extra
+        app_id = extra.get("algolia_app_id") or os.environ.get("ALGOLIA_APP_ID", "")
+        api_key = extra.get("algolia_api_key") or os.environ.get("ALGOLIA_API_KEY", "")
+        return AlgoliaEngine(app_id, api_key)
 
     def extend(self, name: str, factory: Callable[[], Engine]) -> None:
         """Register `factory` as the driver named `name`.

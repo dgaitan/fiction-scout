@@ -34,6 +34,7 @@ django = ["Django>=4.2"]
 sqlalchemy = ["SQLAlchemy>=2.0"]
 flask = ["Flask>=2.3"]
 celery = ["celery>=5.3"]
+algolia = ["algoliasearch>=3.0"]
 dev = [
     "pytest>=8.0",
     "pytest-django>=4.8",
@@ -114,6 +115,7 @@ markers = [
     "django: tests requiring the Django adapter/extra",
     "sqlalchemy: tests requiring the SQLAlchemy adapter/extra",
     "celery: tests requiring the Celery dispatcher/extra",
+    "algolia: tests requiring the Algolia engine/extra",
 ]
 testpaths = ["tests"]
 # Needed so `DJANGO_SETTINGS_MODULE=tests.django_app.settings` resolves when

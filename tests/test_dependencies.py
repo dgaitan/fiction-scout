@@ -11,8 +11,11 @@ def test_require_installed_passes_for_an_installed_module() -> None:
 
 
 def test_require_installed_raises_with_actionable_message() -> None:
+    # A module name that is never a real fiction-scout extra, so this test
+    # stays true regardless of which optional extras happen to be installed
+    # in the environment it runs in.
     with pytest.raises(MissingDependencyError) as excinfo:
-        require_installed("algolia", "algoliasearch", "algolia")
+        require_installed("widget", "definitely_not_a_real_package", "widget")
     message = str(excinfo.value)
-    assert "algoliasearch" in message
-    assert 'pip install "fiction-scout[algolia]"' in message
+    assert "definitely_not_a_real_package" in message
+    assert 'pip install "fiction-scout[widget]"' in message
