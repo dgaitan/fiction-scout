@@ -123,11 +123,7 @@ class FakeAdapter:
 
 @dataclass
 class SpyEngine(Engine):
-    """Records `update`/`delete` calls instead of touching a real index.
-
-    Used to verify orchestration wiring (which instances reached the
-    engine, in what batches) without depending on a specific driver.
-    """
+    """Records `update`/`delete` calls instead of touching a real index."""
 
     updated_batches: list[list[Any]] = field(default_factory=list)
     deleted_batches: list[list[Any]] = field(default_factory=list)
@@ -159,12 +155,7 @@ class SpyEngine(Engine):
 
 @dataclass
 class SpyDispatcher:
-    """Records dispatched callables and runs them immediately, like the sync default.
-
-    Lets tests assert *that* a write went through the `Dispatcher` protocol
-    (rather than calling the engine directly) while still observing the
-    write's effect.
-    """
+    """Records dispatched calls, then runs them immediately."""
 
     dispatched_count: int = 0
 

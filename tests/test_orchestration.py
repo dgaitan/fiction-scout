@@ -25,7 +25,6 @@ def test_given_not_paused_when_make_searchable_called_then_engine_receives_batch
         batch,
         adapter=adapter,
         engine_manager=_spy_engine_manager(engine),
-        config=FictionScoutConfig(),
         dispatcher=dispatcher,
     )
 
@@ -43,7 +42,6 @@ def test_given_syncing_paused_when_make_searchable_called_then_engine_not_touche
             articles[:2],
             adapter=adapter,
             engine_manager=_spy_engine_manager(engine),
-            config=FictionScoutConfig(),
             dispatcher=dispatcher,
         )
 
@@ -61,7 +59,6 @@ def test_given_non_searchable_instance_when_searchable_called_then_excluded_from
         [live, soft_deleted],
         adapter=adapter,
         engine_manager=_spy_engine_manager(engine),
-        config=FictionScoutConfig(),
         dispatcher=dispatcher,
     )
 
@@ -78,7 +75,6 @@ def test_given_dispatcher_when_make_searchable_called_then_write_goes_through_di
         articles[:1],
         adapter=adapter,
         engine_manager=_spy_engine_manager(engine),
-        config=FictionScoutConfig(),
         dispatcher=dispatcher,
     )
 
@@ -97,7 +93,6 @@ def test_given_not_paused_when_make_unsearchable_called_then_engine_deletes_batc
         batch,
         adapter=adapter,
         engine_manager=_spy_engine_manager(engine),
-        config=FictionScoutConfig(),
         dispatcher=dispatcher,
     )
 
@@ -115,7 +110,6 @@ def test_given_syncing_paused_when_make_unsearchable_called_then_engine_not_touc
             articles[:2],
             adapter=adapter,
             engine_manager=_spy_engine_manager(engine),
-            config=FictionScoutConfig(),
             dispatcher=dispatcher,
         )
 
@@ -134,9 +128,32 @@ def test_given_chunk_size_when_make_all_searchable_then_one_call_per_chunk() -> 
         Article,
         adapter=adapter,
         engine_manager=_spy_engine_manager(engine),
-        config=FictionScoutConfig(),
         dispatcher=dispatcher,
         chunk_size=2,
+    )
+
+    assert len(engine.updated_batches) == 2
+    assert engine.updated_batches[0] == live_articles[:2]
+    assert engine.updated_batches[1] == live_articles[2:]
+
+
+def test_given_no_chunk_size_when_make_all_searchable_then_uses_config_chunk_size() -> (
+    None
+):
+    live_articles = [
+        Article(id=i, title=f"Title {i}", body=f"Body {i}") for i in range(1, 5)
+    ]
+    adapter = FakeAdapter(live_articles)
+    engine = SpyEngine()
+    manager = EngineManager(FictionScoutConfig(driver="spy", chunk_size=2))
+    manager.extend("spy", lambda: engine)
+    dispatcher = SpyDispatcher()
+
+    orchestration.make_all_searchable(
+        Article,
+        adapter=adapter,
+        engine_manager=manager,
+        dispatcher=dispatcher,
     )
 
     assert len(engine.updated_batches) == 2
@@ -154,7 +171,6 @@ def test_given_perform_search_called_then_returns_builder_bound_to_resolved_engi
         "star",
         adapter=adapter,
         engine_manager=_spy_engine_manager(engine),
-        config=FictionScoutConfig(),
     )
 
     assert isinstance(builder, Builder)

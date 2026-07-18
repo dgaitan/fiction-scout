@@ -29,6 +29,10 @@ class EngineManager:
         self._registry: Registry[Engine] = Registry()
         self._register_builtin_drivers()
 
+    @property
+    def config(self) -> FictionScoutConfig:
+        return self._config
+
     def _register_builtin_drivers(self) -> None:
         from fiction_scout.engines.collection import CollectionEngine
         from fiction_scout.engines.database import DatabaseEngine

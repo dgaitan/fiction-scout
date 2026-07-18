@@ -52,13 +52,21 @@ This should return nothing. If it does, that's a bug, not a style nit.
   core; Django/SQLAlchemy adapter modules are checked less strictly (see
   `pyproject.toml` `[tool.mypy]` overrides) because their stub coverage is
   incomplete, not because rigor doesn't matter there.
-- Docstrings follow PEP 257 (one-line summary, blank line, details only if
-  the *why* isn't obvious from the signature — see the global style
-  preference against restating what code already says).
-- No comments explaining *what* code does. A comment is only warranted for a
-  non-obvious *why* — see the SQLAlchemy `after_commit`-vs-`after_insert`
-  choice in `adapters/sqlalchemy/events.py` for an example of the bar to
-  clear.
+- Do not add comments or docstrings unless strictly necessary. Default to
+  none. A well-named function/class/variable and a clear signature should
+  make the *what* self-evident — don't restate it in a docstring. The only
+  thing worth writing down is a non-obvious *why*: a hidden constraint, a
+  workaround, a reason a simpler approach doesn't work. See the SQLAlchemy
+  `after_commit`-vs-`after_insert` choice in `adapters/sqlalchemy/events.py`
+  for the bar to clear. `pyproject.toml`'s ruff config does not require
+  docstrings on public modules/functions (`D100`-`D104`, `D106` are
+  ignored) — that's deliberate, not an oversight to "fix" by adding them
+  back.
+- Write idiomatic, pythonic code: comprehensions over manual accumulation
+  loops, `pathlib` over `os.path`, context managers over manual
+  try/finally, unpacking over indexing, f-strings over `%`/`.format()`,
+  `dataclasses`/`NamedTuple` over ad-hoc attribute bags. Prefer the
+  standard-library idiom over a hand-rolled equivalent.
 
 ## Testing
 
