@@ -35,3 +35,22 @@ class UnknownDriverError(FictionScoutError):
             f"Unknown driver '{name}'. Available drivers: {available_text}. "
             "Register a new one with EngineManager.extend(name, factory)."
         )
+
+
+class ModelResolutionError(FictionScoutError):
+    """A dotted model path (e.g. `myapp.models.Post`) could not be imported."""
+
+    def __init__(self, dotted_path: str, reason: str | None = None) -> None:
+        self.dotted_path = dotted_path
+        detail = f": {reason}" if reason else ""
+        super().__init__(f"Could not import model '{dotted_path}'{detail}")
+
+
+class IndexSettingsNotSupportedError(FictionScoutError):
+    """A driver has no index-settings management to apply."""
+
+    def __init__(self, driver_name: str) -> None:
+        self.driver_name = driver_name
+        super().__init__(
+            f"The '{driver_name}' driver does not support index settings management."
+        )

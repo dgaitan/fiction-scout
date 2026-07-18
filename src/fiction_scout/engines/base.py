@@ -5,6 +5,8 @@ from __future__ import annotations
 import abc
 from typing import TYPE_CHECKING, Any
 
+from fiction_scout.exceptions import IndexSettingsNotSupportedError
+
 if TYPE_CHECKING:
     from fiction_scout.protocols import SearchableAdapter
     from fiction_scout.search.builder import Builder
@@ -79,6 +81,20 @@ class Engine(abc.ABC):
 
     def delete_index(self, name: str) -> None:  # noqa: B027
         """Delete the index named `name`. No-op unless a driver overrides it."""
+
+    def update_index_settings(
+        self, model: type, adapter: SearchableAdapter, **settings: Any
+    ) -> None:
+        """Apply this driver's index settings for `model`.
+
+        Covers things like searchable attributes and ranking rules.
+        Raises `IndexSettingsNotSupportedError` by default — unlike
+        `create_index`/`delete_index`, this must never silently no-op, since
+        the CLI's `sync-index-settings` command relies on the raise to tell a
+        caller their driver has nothing to apply. Override in drivers with a
+        real settings API (e.g. Meilisearch).
+        """
+        raise IndexSettingsNotSupportedError(type(self).__name__)
 
     def keys(self, builder: Builder) -> list[Any]:
         """Return the scout keys matching `builder`, without fetching models."""

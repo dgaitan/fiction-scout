@@ -7,6 +7,8 @@ from django.forms.models import model_to_dict
 
 from fiction_scout import orchestration
 from fiction_scout.adapters.django import runtime
+from fiction_scout.engines.manager import EngineManager
+from fiction_scout.protocols import Dispatcher, SearchableAdapter
 from fiction_scout.search.builder import Builder
 
 
@@ -43,6 +45,18 @@ class SearchableMixin(models.Model):
 
     def should_be_searchable(self) -> bool:
         return orchestration.should_be_searchable(self, adapter=runtime.get_adapter())
+
+    @classmethod
+    def get_scout_adapter(cls) -> SearchableAdapter:
+        return runtime.get_adapter()
+
+    @classmethod
+    def get_scout_engine_manager(cls) -> EngineManager:
+        return runtime.get_engine_manager()
+
+    @classmethod
+    def get_scout_dispatcher(cls) -> Dispatcher:
+        return runtime.get_dispatcher()
 
     @classmethod
     def search(cls, term: str = "", **kwargs: Any) -> Builder:

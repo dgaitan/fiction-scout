@@ -17,7 +17,7 @@ from tests.support import Article, FakeAdapter
 # opt back in.
 collect_ignore: list[str] = []
 if not os.environ.get("DJANGO_SETTINGS_MODULE"):
-    collect_ignore += ["django_app", "test_django"]
+    collect_ignore += ["django_app", "test_django", "cli"]
 if importlib.util.find_spec("sqlalchemy") is None:
     collect_ignore += ["sqlalchemy_app", "test_sqlalchemy"]
 

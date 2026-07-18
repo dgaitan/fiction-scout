@@ -127,6 +127,7 @@ class SpyEngine(Engine):
 
     updated_batches: list[list[Any]] = field(default_factory=list)
     deleted_batches: list[list[Any]] = field(default_factory=list)
+    flushed: list[type] = field(default_factory=list)
 
     def update(self, models: list[Any], adapter: Any) -> None:
         self.updated_batches.append(list(models))
@@ -135,7 +136,7 @@ class SpyEngine(Engine):
         self.deleted_batches.append(list(models))
 
     def flush(self, model: type, adapter: Any) -> None:
-        pass
+        self.flushed.append(model)
 
     def search(self, builder: Any) -> Any:
         return []

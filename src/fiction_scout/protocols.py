@@ -9,7 +9,10 @@ seam that makes a new ORM adapter a pure-addition change: see
 from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
-from typing import Any, Callable, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from fiction_scout.engines.manager import EngineManager
 
 
 @runtime_checkable
@@ -118,4 +121,31 @@ class Dispatcher(Protocol):
 
     def dispatch(self, fn: Callable[[], None]) -> None:
         """Run `fn`, either synchronously or by handing it to a queue."""
+        ...
+
+
+@runtime_checkable
+class ScoutModel(Protocol):
+    """What `cli/` needs from a resolved model class, independent of ORM.
+
+    Each ORM's `SearchableMixin` (e.g. `adapters/django/mixin.py`) implements
+    these three classmethods by delegating to its own runtime module. This is
+    the seam that lets `cli/` resolve a dotted model path to a working
+    adapter/engine-manager/dispatcher trio without ever importing Django or
+    SQLAlchemy — see `docs/extending/custom-adapters.md`.
+    """
+
+    @classmethod
+    def get_scout_adapter(cls) -> SearchableAdapter:
+        """Return the `SearchableAdapter` this model's framework uses."""
+        ...
+
+    @classmethod
+    def get_scout_engine_manager(cls) -> EngineManager:
+        """Return the configured `EngineManager` for this model's framework."""
+        ...
+
+    @classmethod
+    def get_scout_dispatcher(cls) -> Dispatcher:
+        """Return the configured `Dispatcher` for this model's framework."""
         ...
