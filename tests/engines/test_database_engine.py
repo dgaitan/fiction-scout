@@ -17,6 +17,24 @@ def test_search_matches_via_like_by_default(
     assert [a.id for a in engine.get(builder)] == [1]
 
 
+def test_given_where_constraint_when_search_then_filters_by_exact_field(
+    adapter: FakeAdapter, articles: list[Article]
+) -> None:
+    engine = DatabaseEngine()
+    builder = Builder(Article, "", engine=engine, adapter=adapter).where("id", 2)
+    assert [a.id for a in engine.get(builder)] == [2]
+
+
+def test_given_where_in_constraint_when_search_then_filters_by_membership(
+    adapter: FakeAdapter, articles: list[Article]
+) -> None:
+    engine = DatabaseEngine()
+    builder = Builder(Article, "", engine=engine, adapter=adapter).where_in(
+        "id", [1, 2]
+    )
+    assert {a.id for a in engine.get(builder)} == {1, 2}
+
+
 def test_where_not_in_composes_with_search_term(
     adapter: FakeAdapter, articles: list[Article]
 ) -> None:

@@ -48,12 +48,13 @@ class DatabaseEngine(Engine):
         query = adapter.query_all(builder.model)
         if builder.term:
             query = adapter.apply_search_term(query, builder.model, builder.term)
-        for field, value in builder.wheres.items():
-            query = adapter.apply_where(query, field, value)
-        for field, values in builder.where_ins.items():
-            query = adapter.apply_where_in(query, field, values)
-        for field, values in builder.where_not_ins.items():
-            query = adapter.apply_where_not_in(query, field, values)
+        for apply, constraints in (
+            (adapter.apply_where, builder.wheres),
+            (adapter.apply_where_in, builder.where_ins),
+            (adapter.apply_where_not_in, builder.where_not_ins),
+        ):
+            for field, value in constraints.items():
+                query = apply(query, field, value)
         query = adapter.apply_trashed_filter(
             query,
             builder.model,
