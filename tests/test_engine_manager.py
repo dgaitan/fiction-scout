@@ -28,9 +28,11 @@ def test_unknown_driver_raises_with_available_drivers_listed() -> None:
     assert "bogus-driver-name" in message
     assert "collection" in message
     assert "database" in message
-    # "algolia" is a registered (lazy) driver name even without the SDK
-    # installed — only *selecting* it requires the extra, not registration.
+    # "algolia"/"meilisearch" are registered (lazy) driver names even
+    # without their SDKs installed — only *selecting* one requires the
+    # extra, not registration.
     assert "algolia" in message
+    assert "meilisearch" in message
 
 
 def test_algolia_driver_raises_missing_dependency_when_sdk_not_installed(
@@ -52,6 +54,25 @@ def test_algolia_driver_raises_missing_dependency_when_sdk_not_installed(
     message = str(excinfo.value)
     assert "algoliasearch" in message
     assert 'pip install "fiction-scout[algolia]"' in message
+
+
+def test_meilisearch_driver_raises_missing_dependency_when_sdk_not_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Mocked, not environment-dependent — same reasoning as the Algolia
+    # equivalent test just above: `test_all` installs every extra together,
+    # so this can't rely on `meilisearch` actually being absent.
+    def _boom(feature: str, module_name: str, extra: str) -> None:
+        raise MissingDependencyError(feature=feature, package=module_name, extra=extra)
+
+    monkeypatch.setattr("fiction_scout.engines.manager.require_installed", _boom)
+
+    manager = EngineManager(FictionScoutConfig(driver="meilisearch"))
+    with pytest.raises(MissingDependencyError) as excinfo:
+        manager.driver()
+    message = str(excinfo.value)
+    assert "meilisearch" in message
+    assert 'pip install "fiction-scout[meilisearch]"' in message
 
 
 def test_extend_registers_a_custom_driver() -> None:

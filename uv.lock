@@ -533,6 +533,42 @@ wheels = [
 ]
 
 [[package]]
+name = "camel-converter"
+version = "4.0.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.10'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ee/3d/dd783586dc0c4aee5b6b88489666fdb2c0c344ea0aa8a5c10746cc423707/camel_converter-4.0.1.tar.gz", hash = "sha256:401414549ae4ac4073e38cdc4aa6d464dc534fc40aa06ff787bf0960b0c86535", size = 38915, upload-time = "2024-10-08T16:55:39.427Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/32/e5/806359514cc8305f047bd6d39d63890298c0596f7328b534059724bd1a9e/camel_converter-4.0.1-py3-none-any.whl", hash = "sha256:0cba7ca1354a29ca2191983deecc9dcf28889f606c28d6ed18ac7d4586b163ac", size = 6243, upload-time = "2024-10-08T16:55:37.769Z" },
+]
+
+[package.optional-dependencies]
+pydantic = [
+    { name = "pydantic", marker = "python_full_version < '3.10'" },
+]
+
+[[package]]
+name = "camel-converter"
+version = "5.1.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.15'",
+    "python_full_version >= '3.12' and python_full_version < '3.15'",
+    "python_full_version >= '3.10' and python_full_version < '3.12'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cd/cb/55feabf13527c464db60145e2e0dccd2f190b0a4a417cac2473bd2b18508/camel_converter-5.1.0.tar.gz", hash = "sha256:d979f23de232aa262dcf15a263ed9af934ff4378644dae23a7c2f8d40f4fff8f", size = 71481, upload-time = "2026-03-05T15:30:58.957Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d5/c3/8fc18a914da9747b7a652180758a46a3d5f22efd0dffd5a8b97acfb1ebf3/camel_converter-5.1.0-py3-none-any.whl", hash = "sha256:93f05d7d84a4353ddfd87bca909d1de45c11f5757f6a460de10534397146fe88", size = 6960, upload-time = "2026-03-05T15:31:00.135Z" },
+]
+
+[package.optional-dependencies]
+pydantic = [
+    { name = "pydantic", marker = "python_full_version >= '3.10'" },
+]
+
+[[package]]
 name = "celery"
 version = "5.6.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1217,6 +1253,10 @@ docs = [
 flask = [
     { name = "flask" },
 ]
+meilisearch = [
+    { name = "meilisearch", version = "0.41.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "meilisearch", version = "0.42.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
 sqlalchemy = [
     { name = "sqlalchemy" },
 ]
@@ -1229,6 +1269,7 @@ requires-dist = [
     { name = "django", marker = "extra == 'django'", specifier = ">=4.2" },
     { name = "django-stubs", marker = "extra == 'dev'", specifier = ">=5.0" },
     { name = "flask", marker = "extra == 'flask'", specifier = ">=2.3" },
+    { name = "meilisearch", marker = "extra == 'meilisearch'", specifier = ">=0.31" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
@@ -1240,7 +1281,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
     { name = "sqlalchemy", marker = "extra == 'sqlalchemy'", specifier = ">=2.0" },
 ]
-provides-extras = ["django", "sqlalchemy", "flask", "celery", "algolia", "dev", "docs"]
+provides-extras = ["django", "sqlalchemy", "flask", "celery", "algolia", "meilisearch", "dev", "docs"]
 
 [[package]]
 name = "filelock"
@@ -1919,6 +1960,40 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/cd/1b/a7782984844bd519ad4ffdbebbba2671ec5d0ebbeac34736c15fb86399e8/markupsafe-3.0.3-cp39-cp39-win32.whl", hash = "sha256:df2449253ef108a379b8b5d6b43f4b1a8e81a061d6537becd5582fba5f9196d7", size = 14566, upload-time = "2025-09-27T18:37:37.09Z" },
     { url = "https://files.pythonhosted.org/packages/18/1f/8d9c20e1c9440e215a44be5ab64359e207fcb4f675543f1cf9a2a7f648d0/markupsafe-3.0.3-cp39-cp39-win_amd64.whl", hash = "sha256:7c3fb7d25180895632e5d3148dbdc29ea38ccb7fd210aa27acbd1201a1902c6e", size = 15053, upload-time = "2025-09-27T18:37:38.054Z" },
     { url = "https://files.pythonhosted.org/packages/4e/d3/fe08482b5cd995033556d45041a4f4e76e7f0521112a9c9991d40d39825f/markupsafe-3.0.3-cp39-cp39-win_arm64.whl", hash = "sha256:38664109c14ffc9e7437e86b4dceb442b0096dfe3541d7864d9cbe1da4cf36c8", size = 13928, upload-time = "2025-09-27T18:37:39.037Z" },
+]
+
+[[package]]
+name = "meilisearch"
+version = "0.41.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.10'",
+]
+dependencies = [
+    { name = "camel-converter", version = "4.0.1", source = { registry = "https://pypi.org/simple" }, extra = ["pydantic"], marker = "python_full_version < '3.10'" },
+    { name = "requests", version = "2.32.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/67/20/1a0586f466a52bec20f8540b6c798be3f25dba1acdfd3ed3c4d04caf3cdb/meilisearch-0.41.1.tar.gz", hash = "sha256:40786fdbe43b5f8691155d620a5b701b78279d6af74bd022eed265a732d70a69", size = 32957, upload-time = "2026-06-16T03:32:22.44Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a8/62/a19b0291232a064c716620a5b8c570c5c2e124425f044bc0d9f28c4075b9/meilisearch-0.41.1-py3-none-any.whl", hash = "sha256:457e3edc93a80b0ccad8bb85eb3758a57e83c5851ed9271aab66f0eb1b126d61", size = 33144, upload-time = "2026-06-16T03:32:21.376Z" },
+]
+
+[[package]]
+name = "meilisearch"
+version = "0.42.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.15'",
+    "python_full_version >= '3.12' and python_full_version < '3.15'",
+    "python_full_version >= '3.10' and python_full_version < '3.12'",
+]
+dependencies = [
+    { name = "camel-converter", version = "5.1.0", source = { registry = "https://pypi.org/simple" }, extra = ["pydantic"], marker = "python_full_version >= '3.10'" },
+    { name = "requests", version = "2.34.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/69/04/5b16f2c7448c45bd5579ba4b69d2704d0fd1f48d659ba2496ae0897e2f91/meilisearch-0.42.0.tar.gz", hash = "sha256:b17bb2cf97ec9bd79bfdc76ebed4963a38ff9f3f958dc1dc43b3fbd278d3ae98", size = 32380, upload-time = "2026-06-30T04:19:35.651Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/db/484c564b92b6e937f5b420bc7f39b19051ad7c4007901f2320c56ea7c29f/meilisearch-0.42.0-py3-none-any.whl", hash = "sha256:a376a028184f91790208325f5898026a91ad5e88f6bd95d69efdc4e4f9f0f94f", size = 32670, upload-time = "2026-06-30T04:19:34.322Z" },
 ]
 
 [[package]]

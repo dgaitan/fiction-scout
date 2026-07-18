@@ -15,6 +15,7 @@ from fiction_scout.registry import Registry
 # Drivers with no external dependency (database, collection) aren't listed.
 _DRIVER_DEPENDENCIES: dict[str, tuple[str, str]] = {
     "algolia": ("algoliasearch", "algolia"),
+    "meilisearch": ("meilisearch", "meilisearch"),
 }
 
 
@@ -43,6 +44,7 @@ class EngineManager:
         self._registry.register("collection", CollectionEngine)
         self._registry.register("database", DatabaseEngine)
         self._registry.register("algolia", self._build_algolia_engine)
+        self._registry.register("meilisearch", self._build_meilisearch_engine)
 
     def _build_algolia_engine(self) -> Engine:
         # Imported here, not at module top level, so `EngineManager` itself
@@ -57,6 +59,21 @@ class EngineManager:
         app_id = extra.get("algolia_app_id") or os.environ.get("ALGOLIA_APP_ID", "")
         api_key = extra.get("algolia_api_key") or os.environ.get("ALGOLIA_API_KEY", "")
         return AlgoliaEngine(app_id, api_key)
+
+    def _build_meilisearch_engine(self) -> Engine:
+        # Same lazy-import rationale as `_build_algolia_engine` above.
+        from fiction_scout.engines.meilisearch import MeilisearchEngine
+
+        extra = self._config.extra
+        url = (
+            extra.get("meilisearch_url")
+            or os.environ.get("MEILISEARCH_URL")
+            or "http://127.0.0.1:7700"
+        )
+        api_key = extra.get("meilisearch_api_key") or os.environ.get(
+            "MEILISEARCH_API_KEY", ""
+        )
+        return MeilisearchEngine(url, api_key)
 
     def extend(self, name: str, factory: Callable[[], Engine]) -> None:
         """Register `factory` as the driver named `name`.

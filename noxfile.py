@@ -18,7 +18,7 @@ def lint(session: nox.Session) -> None:
 @nox.session(python=PYTHON_VERSIONS[-1])
 def typecheck(session: nox.Session) -> None:
     """Run mypy against the core package."""
-    session.install("-e", ".[dev,django,sqlalchemy,celery,algolia]")
+    session.install("-e", ".[dev,django,sqlalchemy,celery,algolia,meilisearch]")
     session.run("mypy")
 
 
@@ -48,12 +48,13 @@ def test_core(session: nox.Session) -> None:
 def test_django(session: nox.Session) -> None:
     """Run the Django adapter test suite.
 
-    Installs the `algolia` extra alongside `django` too: one test module
-    (`tests/test_django/test_algolia_integration.py`) proves the real
-    `DjangoAdapter` round-trips correctly through `AlgoliaEngine`, which
-    needs both installed together to even collect.
+    Installs the `algolia` and `meilisearch` extras alongside `django` too:
+    `tests/test_django/test_algolia_integration.py` and
+    `test_meilisearch_integration.py` each prove the real `DjangoAdapter`
+    round-trips correctly through their respective engine, which needs both
+    installed together to even collect.
     """
-    session.install("-e", ".[dev,django,algolia]")
+    session.install("-e", ".[dev,django,algolia,meilisearch]")
     session.run(
         "pytest",
         "tests",
@@ -84,6 +85,20 @@ def test_algolia(session: nox.Session) -> None:
     session.run("pytest", "tests", "-m", "algolia")
 
 
+@nox.session(python=PYTHON_VERSIONS)
+def test_meilisearch(session: nox.Session) -> None:
+    """Run the Meilisearch engine test suite.
+
+    The live-server tier (`tests/test_meilisearch/test_meilisearch_live.py`)
+    skips itself gracefully here if neither a `meilisearch` binary is on
+    `PATH` nor `MEILISEARCH_TEST_URL` is set — see that module's
+    `conftest.py`. Export `MEILISEARCH_TEST_URL` (e.g. pointed at a
+    `getmeili/meilisearch` container) to exercise it for real.
+    """
+    session.install("-e", ".[dev,meilisearch]")
+    session.run("pytest", "tests", "-m", "meilisearch")
+
+
 @nox.session(python=PYTHON_VERSIONS[-1])
 def test_all(session: nox.Session) -> None:
     """Run the full test suite with every extra installed.
@@ -95,7 +110,7 @@ def test_all(session: nox.Session) -> None:
     Django-related (found while adding the Algolia/Django integration
     tests, which otherwise never ran under this session at all).
     """
-    session.install("-e", ".[dev,django,sqlalchemy,celery,algolia]")
+    session.install("-e", ".[dev,django,sqlalchemy,celery,algolia,meilisearch]")
     session.run(
         "pytest",
         "tests",

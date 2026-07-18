@@ -227,3 +227,126 @@ class FakeAlgoliaClient:
     ) -> AlgoliaSearchResponse:
         self.search_calls.append((index_name, dict(search_params)))
         return AlgoliaSearchResponse(hits=self._search_hits, nb_hits=self._nb_hits)
+
+
+@dataclass
+class MeilisearchTask:
+    """Stand-in for the real client's `TaskInfo` — only `task_uid` is used."""
+
+    task_uid: int = 0
+
+
+def _meilisearch_index_not_found_error() -> Exception:
+    """Build a real `meilisearch.errors.MeilisearchApiError`, code="index_not_found".
+
+    `MeilisearchEngine.create_index` catches the SDK's actual exception
+    class (not a fake stand-in), so the fake client has to raise a real one
+    to be a faithful double of the wire boundary. Imported lazily — this
+    module is imported unconditionally by the root `conftest.py`, and this
+    function is only ever called from `meilisearch`-marked tests, which are
+    only collected when the `meilisearch` extra is installed (see
+    `tests/conftest.py`'s `collect_ignore`).
+    """
+    import json
+
+    from meilisearch.errors import MeilisearchApiError
+
+    class _FakeHttpResponse:
+        status_code = 404
+        text = json.dumps({"message": "Index not found", "code": "index_not_found"})
+
+    return MeilisearchApiError("index not found", _FakeHttpResponse())  # type: ignore[arg-type]
+
+
+class FakeMeilisearchIndex:
+    """A hand-rolled fake standing in for `meilisearch.Index`."""
+
+    def __init__(self, client: FakeMeilisearchClient, uid: str) -> None:
+        self._client = client
+        self.uid = uid
+
+    def add_documents(
+        self, documents: list[dict[str, Any]], primary_key: str | None = None
+    ) -> MeilisearchTask:
+        self._client.added.append((self.uid, list(documents), primary_key))
+        return MeilisearchTask()
+
+    def delete_documents(self, ids: list[Any]) -> MeilisearchTask:
+        self._client.deleted.append((self.uid, list(ids)))
+        return MeilisearchTask()
+
+    def delete_all_documents(self) -> MeilisearchTask:
+        self._client.cleared.append(self.uid)
+        return MeilisearchTask()
+
+    def search(
+        self, query: str, opt_params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        self._client.search_calls.append((self.uid, query, dict(opt_params or {})))
+        if self._client.search_raises_index_not_found:
+            raise _meilisearch_index_not_found_error()
+        return {
+            "hits": [dict(hit) for hit in self._client._search_hits],
+            "estimatedTotalHits": self._client._estimated_total_hits,
+        }
+
+
+class FakeMeilisearchClient:
+    """A hand-rolled fake standing in for `meilisearch.Client`.
+
+    Matches this project's existing test-double style (`FakeAlgoliaClient`,
+    `SpyEngine`) rather than `unittest.mock`. Shared by
+    `tests/test_meilisearch/test_meilisearch_engine.py` (unit tier) — the
+    real-server tier in `tests/test_meilisearch/test_meilisearch_live.py`
+    uses the genuine `meilisearch.Client` instead.
+    """
+
+    def __init__(
+        self,
+        *,
+        search_hits: list[dict[str, Any]] | None = None,
+        estimated_total_hits: int = 0,
+        existing_index_uids: set[str] | None = None,
+        search_raises_index_not_found: bool = False,
+    ) -> None:
+        self.search_raises_index_not_found = search_raises_index_not_found
+        self.added: list[tuple[str, list[dict[str, Any]], str | None]] = []
+        self.deleted: list[tuple[str, list[Any]]] = []
+        self.cleared: list[str] = []
+        self.created: list[tuple[str, dict[str, Any] | None]] = []
+        self.deleted_indexes: list[str] = []
+        self.waited_task_uids: list[int] = []
+        self.search_calls: list[tuple[str, str, dict[str, Any]]] = []
+        self._search_hits = search_hits or []
+        self._estimated_total_hits = estimated_total_hits
+        self._existing_index_uids = existing_index_uids or set()
+
+    def set_search_response(
+        self, *, hits: list[dict[str, Any]], estimated_total_hits: int
+    ) -> None:
+        """Configure what the next `Index.search` call returns."""
+        self._search_hits = hits
+        self._estimated_total_hits = estimated_total_hits
+
+    def index(self, uid: str) -> FakeMeilisearchIndex:
+        return FakeMeilisearchIndex(self, uid)
+
+    def get_index(self, uid: str) -> FakeMeilisearchIndex:
+        if uid not in self._existing_index_uids:
+            raise _meilisearch_index_not_found_error()
+        return FakeMeilisearchIndex(self, uid)
+
+    def create_index(
+        self, uid: str, options: dict[str, Any] | None = None
+    ) -> MeilisearchTask:
+        self.created.append((uid, options))
+        self._existing_index_uids.add(uid)
+        return MeilisearchTask()
+
+    def delete_index(self, uid: str) -> MeilisearchTask:
+        self.deleted_indexes.append(uid)
+        self._existing_index_uids.discard(uid)
+        return MeilisearchTask()
+
+    def wait_for_task(self, task_uid: int) -> None:
+        self.waited_task_uids.append(task_uid)

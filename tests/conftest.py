@@ -28,6 +28,11 @@ if importlib.util.find_spec("algoliasearch") is None:
     # it independently of the "test_django" bulk entry above, which only
     # tracks DJANGO_SETTINGS_MODULE, not algoliasearch's presence.
     collect_ignore += ["test_django/test_algolia_integration.py"]
+if importlib.util.find_spec("meilisearch") is None:
+    collect_ignore += ["test_meilisearch"]
+    # Same reasoning as the Django+Algolia guard above: this one test module
+    # needs both `django` and `meilisearch` together to even collect.
+    collect_ignore += ["test_django/test_meilisearch_integration.py"]
 
 
 @pytest.fixture
