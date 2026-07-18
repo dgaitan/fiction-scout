@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Callable
 
 from fiction_scout.engines.manager import EngineManager
 from fiction_scout.protocols import Dispatcher, SearchableAdapter
@@ -17,12 +17,34 @@ def should_be_searchable(instance: Any, *, adapter: SearchableAdapter) -> bool:
     return True
 
 
+def _dispatch_in_chunks(
+    instances: list[Any],
+    *,
+    engine_manager: EngineManager,
+    dispatcher: Dispatcher,
+    chunk_size: int | None,
+    action: Callable[[list[Any]], None],
+) -> None:
+    # One dispatch per chunk, not one dispatch for the whole list — a queue
+    # dispatcher would otherwise have to serialize every instance into a
+    # single task payload, and a real engine would get one unbounded batch.
+    size = chunk_size if chunk_size is not None else engine_manager.config.chunk_size
+    for start in range(0, len(instances), size):
+        batch = instances[start : start + size]
+
+        def _run(batch: list[Any] = batch) -> None:
+            action(batch)
+
+        dispatcher.dispatch(_run)
+
+
 def make_searchable(
     instances: Sequence[Any],
     *,
     adapter: SearchableAdapter,
     engine_manager: EngineManager,
     dispatcher: Dispatcher,
+    chunk_size: int | None = None,
 ) -> None:
     if is_syncing_paused():
         return
@@ -30,11 +52,13 @@ def make_searchable(
     if not eligible:
         return
     engine = engine_manager.driver()
-
-    def _run() -> None:
-        engine.update(eligible, adapter)
-
-    dispatcher.dispatch(_run)
+    _dispatch_in_chunks(
+        eligible,
+        engine_manager=engine_manager,
+        dispatcher=dispatcher,
+        chunk_size=chunk_size,
+        action=lambda batch: engine.update(batch, adapter),
+    )
 
 
 def make_unsearchable(
@@ -43,18 +67,20 @@ def make_unsearchable(
     adapter: SearchableAdapter,
     engine_manager: EngineManager,
     dispatcher: Dispatcher,
+    chunk_size: int | None = None,
 ) -> None:
     if is_syncing_paused():
         return
     if not instances:
         return
     engine = engine_manager.driver()
-    batch = list(instances)
-
-    def _run() -> None:
-        engine.delete(batch, adapter)
-
-    dispatcher.dispatch(_run)
+    _dispatch_in_chunks(
+        list(instances),
+        engine_manager=engine_manager,
+        dispatcher=dispatcher,
+        chunk_size=chunk_size,
+        action=lambda batch: engine.delete(batch, adapter),
+    )
 
 
 def make_all_searchable(
@@ -77,6 +103,7 @@ def make_all_searchable(
             adapter=adapter,
             engine_manager=engine_manager,
             dispatcher=dispatcher,
+            chunk_size=size,
         )
 
 

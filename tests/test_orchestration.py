@@ -116,6 +116,71 @@ def test_given_syncing_paused_when_make_unsearchable_called_then_engine_not_touc
     assert engine.deleted_batches == []
 
 
+def test_given_large_batch_when_make_searchable_then_dispatched_in_chunks() -> None:
+    live_articles = [
+        Article(id=i, title=f"Title {i}", body=f"Body {i}") for i in range(1, 5)
+    ]
+    adapter = FakeAdapter(live_articles)
+    engine = SpyEngine()
+    manager = EngineManager(FictionScoutConfig(driver="spy", chunk_size=2))
+    manager.extend("spy", lambda: engine)
+    dispatcher = SpyDispatcher()
+
+    orchestration.make_searchable(
+        live_articles,
+        adapter=adapter,
+        engine_manager=manager,
+        dispatcher=dispatcher,
+    )
+
+    assert dispatcher.dispatched_count == 2
+    assert engine.updated_batches == [live_articles[:2], live_articles[2:]]
+
+
+def test_given_explicit_chunk_size_when_make_searchable_then_overrides_config() -> None:
+    live_articles = [
+        Article(id=i, title=f"Title {i}", body=f"Body {i}") for i in range(1, 5)
+    ]
+    adapter = FakeAdapter(live_articles)
+    engine = SpyEngine()
+    dispatcher = SpyDispatcher()
+
+    orchestration.make_searchable(
+        live_articles,
+        adapter=adapter,
+        engine_manager=_spy_engine_manager(engine),
+        dispatcher=dispatcher,
+        chunk_size=3,
+    )
+
+    assert dispatcher.dispatched_count == 2
+    assert engine.updated_batches == [live_articles[:3], live_articles[3:]]
+
+
+def test_given_large_batch_when_make_unsearchable_then_dispatched_in_chunks() -> None:
+    articles_to_remove = [
+        Article(id=i, title=f"Title {i}", body=f"Body {i}") for i in range(1, 5)
+    ]
+    adapter = FakeAdapter(articles_to_remove)
+    engine = SpyEngine()
+    manager = EngineManager(FictionScoutConfig(driver="spy", chunk_size=2))
+    manager.extend("spy", lambda: engine)
+    dispatcher = SpyDispatcher()
+
+    orchestration.make_unsearchable(
+        articles_to_remove,
+        adapter=adapter,
+        engine_manager=manager,
+        dispatcher=dispatcher,
+    )
+
+    assert dispatcher.dispatched_count == 2
+    assert engine.deleted_batches == [
+        articles_to_remove[:2],
+        articles_to_remove[2:],
+    ]
+
+
 def test_given_chunk_size_when_make_all_searchable_then_one_call_per_chunk() -> None:
     live_articles = [
         Article(id=i, title=f"Title {i}", body=f"Body {i}") for i in range(1, 5)
