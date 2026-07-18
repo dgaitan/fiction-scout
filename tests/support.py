@@ -167,3 +167,63 @@ class SpyDispatcher:
     def dispatch(self, fn: Callable[[], None]) -> None:
         self.dispatched_count += 1
         fn()
+
+
+@dataclass
+class AlgoliaHit:
+    """A single result row as `AlgoliaEngine` expects to read it off a response."""
+
+    object_id: str
+
+
+@dataclass
+class AlgoliaSearchResponse:
+    hits: list[AlgoliaHit]
+    nb_hits: int
+
+
+class FakeAlgoliaClient:
+    """A hand-rolled fake standing in for `algoliasearch`'s `SearchClientSync`.
+
+    Matches this project's existing test-double style (`SpyEngine`,
+    `FakeAdapter`) rather than `unittest.mock`. Shared by
+    `tests/test_algolia/` (engine-level tests against `FakeAdapter`) and
+    `tests/test_django/` (integration tests against the real
+    `DjangoAdapter`) so both exercise `AlgoliaEngine` against the identical
+    fake wire boundary — see the design-decision docstring in
+    `engines/algolia.py`.
+    """
+
+    def __init__(
+        self, *, search_hits: list[AlgoliaHit] | None = None, nb_hits: int = 0
+    ) -> None:
+        self.saved: list[tuple[str, list[dict[str, Any]]]] = []
+        self.deleted: list[tuple[str, list[str]]] = []
+        self.cleared: list[str] = []
+        self.deleted_indexes: list[str] = []
+        self.search_calls: list[tuple[str, dict[str, Any]]] = []
+        self._search_hits = search_hits or []
+        self._nb_hits = nb_hits
+
+    def set_search_response(self, *, hits: list[AlgoliaHit], nb_hits: int) -> None:
+        """Configure what the next `search_single_index` call returns."""
+        self._search_hits = hits
+        self._nb_hits = nb_hits
+
+    def save_objects(self, *, index_name: str, objects: list[dict[str, Any]]) -> None:
+        self.saved.append((index_name, list(objects)))
+
+    def delete_objects(self, *, index_name: str, object_ids: list[str]) -> None:
+        self.deleted.append((index_name, list(object_ids)))
+
+    def clear_objects(self, *, index_name: str) -> None:
+        self.cleared.append(index_name)
+
+    def delete_index(self, *, index_name: str) -> None:
+        self.deleted_indexes.append(index_name)
+
+    def search_single_index(
+        self, *, index_name: str, search_params: dict[str, Any]
+    ) -> AlgoliaSearchResponse:
+        self.search_calls.append((index_name, dict(search_params)))
+        return AlgoliaSearchResponse(hits=self._search_hits, nb_hits=self._nb_hits)

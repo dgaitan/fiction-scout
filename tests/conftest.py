@@ -24,6 +24,10 @@ if importlib.util.find_spec("celery") is None:
     collect_ignore += ["test_celery"]
 if importlib.util.find_spec("algoliasearch") is None:
     collect_ignore += ["test_algolia"]
+    # The Django+Algolia integration test needs both extras together; guard
+    # it independently of the "test_django" bulk entry above, which only
+    # tracks DJANGO_SETTINGS_MODULE, not algoliasearch's presence.
+    collect_ignore += ["test_django/test_algolia_integration.py"]
 
 
 @pytest.fixture

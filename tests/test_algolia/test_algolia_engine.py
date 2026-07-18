@@ -14,58 +14,15 @@ from fiction_scout.exceptions import (
     MissingDependencyError,
 )
 from fiction_scout.search.builder import Builder
-from tests.support import Article, FakeAdapter, SpyDispatcher
+from tests.support import (
+    AlgoliaHit,
+    Article,
+    FakeAdapter,
+    FakeAlgoliaClient,
+    SpyDispatcher,
+)
 
 pytestmark = [pytest.mark.algolia]
-
-
-@dataclass
-class _Hit:
-    object_id: str
-
-
-@dataclass
-class _SearchResponse:
-    hits: list[_Hit]
-    nb_hits: int
-
-
-class _FakeAlgoliaClient:
-    """A hand-rolled fake standing in for `algoliasearch`'s `SearchClientSync`.
-
-    Matches this project's existing test-double style (`SpyEngine`,
-    `FakeAdapter`) rather than `unittest.mock` — see the design-decision
-    docstring in `engines/algolia.py`.
-    """
-
-    def __init__(
-        self, *, search_hits: list[_Hit] | None = None, nb_hits: int = 0
-    ) -> None:
-        self.saved: list[tuple[str, list[dict[str, Any]]]] = []
-        self.deleted: list[tuple[str, list[str]]] = []
-        self.cleared: list[str] = []
-        self.deleted_indexes: list[str] = []
-        self.search_calls: list[tuple[str, dict[str, Any]]] = []
-        self._search_hits = search_hits or []
-        self._nb_hits = nb_hits
-
-    def save_objects(self, *, index_name: str, objects: list[dict[str, Any]]) -> None:
-        self.saved.append((index_name, list(objects)))
-
-    def delete_objects(self, *, index_name: str, object_ids: list[str]) -> None:
-        self.deleted.append((index_name, list(object_ids)))
-
-    def clear_objects(self, *, index_name: str) -> None:
-        self.cleared.append(index_name)
-
-    def delete_index(self, *, index_name: str) -> None:
-        self.deleted_indexes.append(index_name)
-
-    def search_single_index(
-        self, *, index_name: str, search_params: dict[str, Any]
-    ) -> _SearchResponse:
-        self.search_calls.append((index_name, dict(search_params)))
-        return _SearchResponse(hits=self._search_hits, nb_hits=self._nb_hits)
 
 
 @dataclass
@@ -81,7 +38,7 @@ class _BlankArticle:
 def test_given_instances_when_update_called_then_save_objects_carries_object_id(
     articles: list[Article], adapter: FakeAdapter
 ) -> None:
-    client = _FakeAlgoliaClient()
+    client = FakeAlgoliaClient()
     engine = AlgoliaEngine(client=client)
 
     engine.update([articles[0], articles[1]], adapter)
@@ -104,7 +61,7 @@ def test_given_empty_searchable_array_when_update_called_then_excluded() -> None
     blank = _BlankArticle(id=99)
     keepable = Article(id=1, title="Star Trek II", body="The Wrath of Khan")
     fake_adapter = FakeAdapter([blank, keepable])
-    client = _FakeAlgoliaClient()
+    client = FakeAlgoliaClient()
     engine = AlgoliaEngine(client=client)
 
     engine.update([blank, keepable], fake_adapter)
@@ -117,7 +74,7 @@ def test_given_empty_searchable_array_when_update_called_then_excluded() -> None
 def test_given_instances_when_delete_called_then_delete_objects_carries_scout_keys(
     articles: list[Article], adapter: FakeAdapter
 ) -> None:
-    client = _FakeAlgoliaClient()
+    client = FakeAlgoliaClient()
     engine = AlgoliaEngine(client=client)
 
     engine.delete([articles[0], articles[1]], adapter)
@@ -128,7 +85,7 @@ def test_given_instances_when_delete_called_then_delete_objects_carries_scout_ke
 def test_given_flush_called_then_clear_objects_empties_only_that_models_index(
     adapter: FakeAdapter,
 ) -> None:
-    client = _FakeAlgoliaClient()
+    client = FakeAlgoliaClient()
     engine = AlgoliaEngine(client=client)
 
     engine.flush(Article, adapter)
@@ -139,8 +96,8 @@ def test_given_flush_called_then_clear_objects_empties_only_that_models_index(
 def test_given_search_term_when_get_called_then_returns_model_instances(
     articles: list[Article], adapter: FakeAdapter
 ) -> None:
-    client = _FakeAlgoliaClient(
-        search_hits=[_Hit(object_id="1"), _Hit(object_id="2")], nb_hits=2
+    client = FakeAlgoliaClient(
+        search_hits=[AlgoliaHit(object_id="1"), AlgoliaHit(object_id="2")], nb_hits=2
     )
     engine = AlgoliaEngine(client=client)
     builder = Builder(Article, "star", engine=engine, adapter=adapter)
@@ -154,7 +111,7 @@ def test_given_search_term_when_get_called_then_returns_model_instances(
 
 
 def test_given_create_index_called_then_raises_not_supported() -> None:
-    engine = AlgoliaEngine(client=_FakeAlgoliaClient())
+    engine = AlgoliaEngine(client=FakeAlgoliaClient())
 
     with pytest.raises(IndexCreationNotSupportedError, match="algolia"):
         engine.create_index("articles")
@@ -166,7 +123,7 @@ def test_given_soft_deleted_instance_when_make_unsearchable_runs_then_deleted(
     deleted_article = Article(
         id=3, title="Archived Article", body="Old content", deleted_at="2020-01-01"
     )
-    client = _FakeAlgoliaClient()
+    client = FakeAlgoliaClient()
     engine = AlgoliaEngine(client=client)
     config = FictionScoutConfig(driver="algolia")
     engine_manager = EngineManager(config)

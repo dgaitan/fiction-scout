@@ -46,8 +46,14 @@ def test_core(session: nox.Session) -> None:
 
 @nox.session(python=PYTHON_VERSIONS)
 def test_django(session: nox.Session) -> None:
-    """Run the Django adapter test suite."""
-    session.install("-e", ".[dev,django]")
+    """Run the Django adapter test suite.
+
+    Installs the `algolia` extra alongside `django` too: one test module
+    (`tests/test_django/test_algolia_integration.py`) proves the real
+    `DjangoAdapter` round-trips correctly through `AlgoliaEngine`, which
+    needs both installed together to even collect.
+    """
+    session.install("-e", ".[dev,django,algolia]")
     session.run(
         "pytest",
         "tests",
@@ -80,9 +86,23 @@ def test_algolia(session: nox.Session) -> None:
 
 @nox.session(python=PYTHON_VERSIONS[-1])
 def test_all(session: nox.Session) -> None:
-    """Run the full test suite with every extra installed."""
+    """Run the full test suite with every extra installed.
+
+    `DJANGO_SETTINGS_MODULE` must be set here too, not just in
+    `test_django` — without it, `tests/test_django/` and `tests/cli/` are
+    silently excluded via `tests/conftest.py`'s `collect_ignore`, and this
+    session's "every extra installed" claim would be false for anything
+    Django-related (found while adding the Algolia/Django integration
+    tests, which otherwise never ran under this session at all).
+    """
     session.install("-e", ".[dev,django,sqlalchemy,celery,algolia]")
-    session.run("pytest", "tests", "--cov=fiction_scout", "--cov-report=term-missing")
+    session.run(
+        "pytest",
+        "tests",
+        "--cov=fiction_scout",
+        "--cov-report=term-missing",
+        env={"DJANGO_SETTINGS_MODULE": "tests.django_app.settings"},
+    )
 
 
 @nox.session(python=PYTHON_VERSIONS[-1])
