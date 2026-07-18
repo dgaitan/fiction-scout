@@ -24,3 +24,8 @@ def resolve_model(dotted_path: str) -> type[ScoutModel]:
     if not isinstance(model, type):
         raise ModelResolutionError(dotted_path, reason=f"{class_name!r} is not a class")
     return model
+
+
+def model_dotted_path(model: type) -> str:
+    """Return the dotted path that re-imports `model` (inverse of `resolve_model`)."""
+    return f"{model.__module__}.{model.__qualname__}"

@@ -14,6 +14,16 @@ def _spy_engine_manager(engine: SpyEngine) -> EngineManager:
     return manager
 
 
+class _CapturingDispatcher:
+    """Records dispatched jobs without running them — inspects their shape."""
+
+    def __init__(self) -> None:
+        self.jobs: list[orchestration.SyncJob] = []
+
+    def dispatch(self, fn: orchestration.SyncJob) -> None:
+        self.jobs.append(fn)
+
+
 def test_given_not_paused_when_make_searchable_called_then_engine_receives_batch(
     adapter: FakeAdapter, articles: list[Article]
 ) -> None:
@@ -243,3 +253,64 @@ def test_given_perform_search_called_then_returns_builder_bound_to_resolved_engi
     assert builder.adapter is adapter
     assert builder.term == "star"
     assert builder.model is Article
+
+
+def test_given_make_searchable_when_dispatched_then_job_carries_operation_and_model(
+    adapter: FakeAdapter, articles: list[Article]
+) -> None:
+    engine = SpyEngine()
+    dispatcher = _CapturingDispatcher()
+    batch = articles[:2]
+
+    orchestration.make_searchable(
+        batch,
+        adapter=adapter,
+        engine_manager=_spy_engine_manager(engine),
+        dispatcher=dispatcher,
+    )
+
+    assert len(dispatcher.jobs) == 1
+    job = dispatcher.jobs[0]
+    assert job.operation == "update"
+    assert job.model is Article
+    assert job.batch == batch
+    assert job.adapter is adapter
+
+
+def test_given_make_unsearchable_when_dispatched_then_job_carries_operation_and_model(
+    adapter: FakeAdapter, articles: list[Article]
+) -> None:
+    engine = SpyEngine()
+    dispatcher = _CapturingDispatcher()
+    batch = articles[:2]
+
+    orchestration.make_unsearchable(
+        batch,
+        adapter=adapter,
+        engine_manager=_spy_engine_manager(engine),
+        dispatcher=dispatcher,
+    )
+
+    assert len(dispatcher.jobs) == 1
+    job = dispatcher.jobs[0]
+    assert job.operation == "delete"
+    assert job.model is Article
+    assert job.batch == batch
+
+
+def test_given_sync_job_when_called_directly_then_runs_the_operation(
+    adapter: FakeAdapter, articles: list[Article]
+) -> None:
+    engine = SpyEngine()
+    batch = articles[:2]
+    job = orchestration.SyncJob(
+        operation="update",
+        model=Article,
+        batch=batch,
+        adapter=adapter,
+        engine_manager=_spy_engine_manager(engine),
+    )
+
+    job()
+
+    assert engine.updated_batches == [batch]

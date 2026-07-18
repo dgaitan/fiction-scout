@@ -20,6 +20,8 @@ if not os.environ.get("DJANGO_SETTINGS_MODULE"):
     collect_ignore += ["django_app", "test_django", "cli"]
 if importlib.util.find_spec("sqlalchemy") is None:
     collect_ignore += ["sqlalchemy_app", "test_sqlalchemy"]
+if importlib.util.find_spec("celery") is None:
+    collect_ignore += ["test_celery"]
 
 
 @pytest.fixture

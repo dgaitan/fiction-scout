@@ -18,7 +18,7 @@ def lint(session: nox.Session) -> None:
 @nox.session(python=PYTHON_VERSIONS[-1])
 def typecheck(session: nox.Session) -> None:
     """Run mypy against the core package."""
-    session.install("-e", ".[dev,django,sqlalchemy]")
+    session.install("-e", ".[dev,django,sqlalchemy,celery]")
     session.run("mypy")
 
 
@@ -57,6 +57,13 @@ def test_sqlalchemy(session: nox.Session) -> None:
     """Run the SQLAlchemy adapter test suite."""
     session.install("-e", ".[dev,sqlalchemy]")
     session.run("pytest", "tests", "-m", "sqlalchemy")
+
+
+@nox.session(python=PYTHON_VERSIONS)
+def test_celery(session: nox.Session) -> None:
+    """Run the Celery dispatcher test suite."""
+    session.install("-e", ".[dev,celery]")
+    session.run("pytest", "tests", "-m", "celery")
 
 
 @nox.session(python=PYTHON_VERSIONS[-1])

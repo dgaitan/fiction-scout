@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Callable
+from dataclasses import dataclass
+from typing import Any, Literal
 
 from fiction_scout.engines.manager import EngineManager
 from fiction_scout.protocols import Dispatcher, SearchableAdapter
@@ -17,25 +18,61 @@ def should_be_searchable(instance: Any, *, adapter: SearchableAdapter) -> bool:
     return True
 
 
+@dataclass(frozen=True)
+class SyncJob:
+    """One dispatched chunk of index-sync work.
+
+    Not just a closure — `operation`/`model`/`batch` are exposed as plain
+    fields so a queue-based `Dispatcher` (e.g. Celery, see
+    `sync/dispatchers/celery.py`) can pull out picklable identifying data
+    (a dotted model path, the batch's scout keys) instead of trying to
+    serialize this object itself, which carries live `adapter`/
+    `engine_manager` instances that may hold unpicklable resources (open
+    network clients, ORM sessions). `SyncDispatcher` and any other
+    in-process dispatcher don't need any of that — they just call the job
+    like any other zero-arg callable, which runs against the exact live
+    `batch` already in memory, no serialization involved.
+    """
+
+    operation: Literal["update", "delete"]
+    model: type
+    batch: list[Any]
+    adapter: SearchableAdapter
+    engine_manager: EngineManager
+
+    def __call__(self) -> None:
+        engine = self.engine_manager.driver()
+        if self.operation == "update":
+            engine.update(self.batch, self.adapter)
+        else:
+            engine.delete(self.batch, self.adapter)
+
+
 def _dispatch_in_chunks(
     instances: list[Any],
     *,
+    adapter: SearchableAdapter,
     engine_manager: EngineManager,
     dispatcher: Dispatcher,
     chunk_size: int | None,
-    action: Callable[[list[Any]], None],
+    operation: Literal["update", "delete"],
 ) -> None:
     # One dispatch per chunk, not one dispatch for the whole list — a queue
     # dispatcher would otherwise have to serialize every instance into a
     # single task payload, and a real engine would get one unbounded batch.
     size = chunk_size if chunk_size is not None else engine_manager.config.chunk_size
+    model = type(instances[0])
     for start in range(0, len(instances), size):
         batch = instances[start : start + size]
-
-        def _run(batch: list[Any] = batch) -> None:
-            action(batch)
-
-        dispatcher.dispatch(_run)
+        dispatcher.dispatch(
+            SyncJob(
+                operation=operation,
+                model=model,
+                batch=batch,
+                adapter=adapter,
+                engine_manager=engine_manager,
+            )
+        )
 
 
 def make_searchable(
@@ -51,13 +88,13 @@ def make_searchable(
     eligible = [i for i in instances if should_be_searchable(i, adapter=adapter)]
     if not eligible:
         return
-    engine = engine_manager.driver()
     _dispatch_in_chunks(
         eligible,
+        adapter=adapter,
         engine_manager=engine_manager,
         dispatcher=dispatcher,
         chunk_size=chunk_size,
-        action=lambda batch: engine.update(batch, adapter),
+        operation="update",
     )
 
 
@@ -73,13 +110,13 @@ def make_unsearchable(
         return
     if not instances:
         return
-    engine = engine_manager.driver()
     _dispatch_in_chunks(
         list(instances),
+        adapter=adapter,
         engine_manager=engine_manager,
         dispatcher=dispatcher,
         chunk_size=chunk_size,
-        action=lambda batch: engine.delete(batch, adapter),
+        operation="delete",
     )
 
 

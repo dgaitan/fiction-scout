@@ -97,6 +97,13 @@ strict = false
 module = "fiction_scout.adapters.sqlalchemy.*"
 strict = false
 
+[[tool.mypy.overrides]]
+# celery ships no py.typed marker/stubs; this only relaxes import resolution
+# for the one lazy `from celery import shared_task`, not fiction-scout's own
+# code in this module, which stays under full strict checking.
+module = "celery.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 # DJANGO_SETTINGS_MODULE is intentionally not set here: pytest-django loads
 # it eagerly at collection time, which would break every non-Django test run
