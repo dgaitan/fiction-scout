@@ -1,22 +1,22 @@
 """Algolia search engine: talks to Algolia's SaaS index API.
 
 **Test strategy (recorded before writing tests against this module, per the
-same bar Sprint 6's Celery-dispatcher docstring set):** Algolia has no
-self-hosted/embeddable mode, so "real" tests either hit a live account or
-mock the HTTP boundary. `tests/test_algolia/` runs a mocked-client unit tier
-unconditionally (via a small hand-rolled fake client, matching this
-project's existing `SpyEngine`/`FakeAdapter` test-double style rather than
-`unittest.mock`) — it asserts fiction-scout calls `save_objects`/
-`delete_objects`/`clear_objects`/`search_single_index` with the right
-arguments, which is what actually proves this engine's own logic is
-correct, independent of network access. A live-integration tier against a
-real Algolia account is deliberately not built: Sprint 7's own Gherkin
-specs don't call for one, and `AlgoliaEngine(client=...)`'s injectable
-client already makes the mocked tier a genuine substitute for exercising
-this module's logic.
+same bar the Celery dispatcher's own design-decision docstring set):**
+Algolia has no self-hosted/embeddable mode, so "real" tests either hit a
+live account or mock the HTTP boundary. `tests/test_algolia/` runs a
+mocked-client unit tier unconditionally (via a small hand-rolled fake
+client, matching this project's existing `SpyEngine`/`FakeAdapter`
+test-double style rather than `unittest.mock`) — it asserts fiction-scout
+calls `save_objects`/`delete_objects`/`clear_objects`/`search_single_index`
+with the right arguments, which is what actually proves this engine's own
+logic is correct, independent of network access. A live-integration tier
+against a real Algolia account is deliberately not built: nothing in this
+module's own Gherkin specs calls for one, and `AlgoliaEngine(client=...)`'s
+injectable client already makes the mocked tier a genuine substitute for
+exercising this module's logic.
 
-**`create_index` is unsupported, not a settings call:** unlike Meilisearch
-(Sprint 8), Algolia has no explicit index-creation API — an index is
+**`create_index` is unsupported, not a settings call:** unlike Meilisearch,
+Algolia has no explicit index-creation API — an index is
 created automatically the first time a record is written to it.
 `create_index` therefore raises `IndexCreationNotSupportedError` instead of
 either silently no-op'ing (which would let a caller believe an empty index
@@ -33,12 +33,12 @@ stay database-engine-only, confirmed with the user 2026-07-18. No
 from this index entirely via the existing `make_unsearchable` path.
 
 **Known, documented limitation — `where`/`where_in`/`where_not_in` are not
-translated to Algolia filters in v1:** Sprint 7's Gherkin specs cover term
-search, create/delete/flush, and the empty-searchable-array exclusion —
-none of them exercise `Builder.where*`. Wiring those into Algolia's
-`filters`/`facetFilters` syntax is real, non-trivial work out of this
-sprint's scope; a caller using `.where()` against the `algolia` driver
-today gets unfiltered results back, not an error. Revisit before shipping
+translated to Algolia filters in v1:** this module's own Gherkin specs
+cover term search, create/delete/flush, and the empty-searchable-array
+exclusion — none of them exercise `Builder.where*`. Wiring those into
+Algolia's `filters`/`facetFilters` syntax is real, non-trivial work outside
+that scope; a caller using `.where()` against the `algolia` driver today
+gets unfiltered results back, not an error. Revisit before shipping
 `.where()` support for this driver.
 
 **Scout key / Algolia `objectID` type mismatch:** Algolia requires

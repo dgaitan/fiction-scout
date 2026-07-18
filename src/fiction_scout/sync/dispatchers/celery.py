@@ -27,8 +27,8 @@ off the `SyncJob` it's given, converts the batch to scout keys via
 happens in the calling process, before anything crosses the broker), and
 sends `(model_dotted_path, ids, operation)` — three plain, JSON-picklable
 values — to one shared task, `_run_sync_job`. That task resolves the model
-via `cli.model_resolution.resolve_model` (Sprint 3's exact mechanism,
-reused rather than reinvented) and gets a *fresh* adapter/engine_manager
+via `cli.model_resolution.resolve_model` (the standalone CLI's exact
+mechanism, reused rather than reinvented) and gets a *fresh* adapter/engine_manager
 via the model's own `ScoutModel.get_scout_adapter()` /
 `get_scout_engine_manager()` classmethods — never the caller's pickled
 instances, which is what keeps this safe regardless of what those objects
@@ -53,9 +53,9 @@ removed. A soft-delete-driven `make_unsearchable` call (the row still
 exists, just flagged) works correctly. Making hard-delete dispatch fully
 correct would mean `Engine.delete()` accepting scout keys directly instead
 of model instances — a change to the shared `Engine` contract every driver
-(current and future) implements, which is out of scope for a dispatcher
-sprint. Sprint 6's own test coverage is scoped to the `update`/sync path
-for exactly this reason.
+(current and future) implements, which is out of scope for this dispatcher.
+This module's own test coverage is scoped to the `update`/sync path for
+exactly this reason.
 """
 
 from __future__ import annotations

@@ -24,8 +24,8 @@ class Command(BaseCommand):
     """`manage.py fiction_scout <subcommand> <model>` — parses arguments only.
 
     Delegates every subcommand to the exact same `cli/commands/*.py`
-    functions the standalone CLI (Sprint 3) calls, so the two entry points
-    can never drift apart.
+    functions the standalone CLI calls, so the two entry points can never
+    drift apart.
     """
 
     help = "Sync searchable models to a search index."

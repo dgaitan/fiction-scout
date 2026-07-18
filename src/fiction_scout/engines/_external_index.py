@@ -3,9 +3,9 @@
 An external search index (Algolia, Meilisearch, Elasticsearch, ...) can only
 return matched document ids — `map()` on these engines is always "extract
 ids, then fetch models", unlike `DatabaseEngine.map()`, which reads live rows
-directly off the query it already built. Sprint 7 (Algolia) introduces this
-helper; Sprints 8-9 (Meilisearch, Elasticsearch) reuse it rather than
-re-deriving the same logic a third time.
+directly off the query it already built. `AlgoliaEngine` is this helper's
+first caller; future external-index engines (Meilisearch, Elasticsearch)
+should reuse it rather than re-deriving the same logic again.
 """
 
 from __future__ import annotations
