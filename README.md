@@ -1,8 +1,8 @@
 # fiction-scout
 
 A simple, driver-based solution for adding full-text search to your models —
-for Django, Flask, or any other Python project. Modeled directly on
-[Laravel Scout](https://laravel.com/docs/master/scout)'s design.
+for Django, Flask, or any other Python project. Inspired by
+[Laravel Scout](https://laravel.com/docs/master/scout)'s methodlogy.
 
 Add the `Searchable` mixin to a model and fiction-scout keeps your search
 index in sync with it automatically, using each ORM's native change-tracking
@@ -91,8 +91,6 @@ uv venv && source .venv/bin/activate
 uv pip install -e ".[dev,django,sqlalchemy,celery]"
 nox -s lint typecheck test_core test_django test_sqlalchemy
 ```
-
-See [`CLAUDE.md`](CLAUDE.md) for architecture and coding conventions.
 
 ## License
 
