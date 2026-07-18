@@ -109,3 +109,8 @@ markers = [
     "celery: tests requiring the Celery dispatcher/extra",
 ]
 testpaths = ["tests"]
+# Needed so `DJANGO_SETTINGS_MODULE=tests.django_app.settings` resolves when
+# pytest is invoked as the `pytest` console script (nox) rather than via
+# `python -m pytest` (which auto-inserts cwd into sys.path) — pytest-django
+# imports settings before its own conftest-based path insertion runs.
+pythonpath = ["."]
