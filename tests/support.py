@@ -9,9 +9,10 @@ correct independent of any ORM.
 from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Callable
 
+from fiction_scout.engines.base import Engine, Page
 from fiction_scout.strategies import SearchStrategy, get_column_strategies
 
 
@@ -118,3 +119,55 @@ class FakeAdapter:
     ) -> list[Any]:
         start = (page - 1) * per_page
         return query[start : start + per_page]
+
+
+@dataclass
+class SpyEngine(Engine):
+    """Records `update`/`delete` calls instead of touching a real index.
+
+    Used to verify orchestration wiring (which instances reached the
+    engine, in what batches) without depending on a specific driver.
+    """
+
+    updated_batches: list[list[Any]] = field(default_factory=list)
+    deleted_batches: list[list[Any]] = field(default_factory=list)
+
+    def update(self, models: list[Any], adapter: Any) -> None:
+        self.updated_batches.append(list(models))
+
+    def delete(self, models: list[Any], adapter: Any) -> None:
+        self.deleted_batches.append(list(models))
+
+    def flush(self, model: type, adapter: Any) -> None:
+        pass
+
+    def search(self, builder: Any) -> Any:
+        return []
+
+    def paginate(self, builder: Any, per_page: int, page: int) -> Page:
+        return Page([], total=0, page=page, per_page=per_page)
+
+    def map_ids(self, results: Any) -> list[Any]:
+        return []
+
+    def map(self, builder: Any, results: Any, model: type) -> list[Any]:
+        return []
+
+    def get_total_count(self, results: Any) -> int:
+        return 0
+
+
+@dataclass
+class SpyDispatcher:
+    """Records dispatched callables and runs them immediately, like the sync default.
+
+    Lets tests assert *that* a write went through the `Dispatcher` protocol
+    (rather than calling the engine directly) while still observing the
+    write's effect.
+    """
+
+    dispatched_count: int = 0
+
+    def dispatch(self, fn: Callable[[], None]) -> None:
+        self.dispatched_count += 1
+        fn()
