@@ -1,0 +1,38 @@
+site_name: fiction-scout
+site_description: A driver-based full-text search layer that auto-syncs your models to a search index.
+repo_url: https://github.com/davidgaitan/fiction-scout
+repo_name: davidgaitan/fiction-scout
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Engines:
+      - database: engines/database.md
+      - collection: engines/collection.md
+      - algolia: engines/algolia.md
+      - meilisearch: engines/meilisearch.md
+  - Extending:
+      - Custom drivers: extending/custom-drivers.md
+      - Custom adapters: extending/custom-adapters.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - tables

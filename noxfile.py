@@ -122,6 +122,12 @@ def test_all(session: nox.Session) -> None:
 
 @nox.session(python=PYTHON_VERSIONS[-1])
 def smoke(session: nox.Session) -> None:
-    """Run the runnable example apps as an end-to-end wiring check."""
-    session.install("-e", ".[dev,django,sqlalchemy]")
-    session.run("python", "examples/sqlalchemy_example/app.py")
+    """Run the runnable example apps as an end-to-end wiring check.
+
+    Only the Django example runs today — `examples/sqlalchemy_example/`
+    stays unbuilt until the SQLAlchemy adapter itself exists. Add
+    `examples/sqlalchemy_example/app.py` back to this session's install
+    extras and run list once that adapter lands.
+    """
+    session.install("-e", ".[dev,django]")
+    session.run("python", "examples/django_example/app.py")

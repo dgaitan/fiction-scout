@@ -12,6 +12,7 @@ venv/
 .coverage
 htmlcov/
 .nox/
+site/
 .env
 *.sqlite3
 .DS_Store

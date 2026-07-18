@@ -71,7 +71,7 @@ FICTION_SCOUT = {"driver": "database"}
 ```python
 # models.py
 from django.db import models
-from fiction_scout.adapters.django import SearchableMixin
+from fiction_scout.adapters.django.mixin import SearchableMixin
 
 
 class Post(SearchableMixin, models.Model):
