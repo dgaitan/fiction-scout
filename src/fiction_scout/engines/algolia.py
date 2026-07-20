@@ -53,17 +53,38 @@ primary key, for example), so `update()` always writes
 `str(adapter.get_scout_key(instance))`, and `map()`/`map_ids()` compare
 ids as strings via `engines._external_index.fetch_matched_models` — see
 that module for why.
+
+**Connection/auth errors are translated, not left as raw SDK tracebacks:**
+a bad `algolia_app_id` doesn't produce an auth error — Algolia derives its
+request hostname from the app id, so a wrong one fails DNS resolution
+before any HTTP response exists, and `algoliasearch`'s own
+`TransporterSync.request` only catches `requests.Timeout`, not
+`requests.ConnectionError`, so that failure would otherwise reach the
+caller as a raw `urllib3`/`requests` traceback. `_translate_client_errors`
+catches that, plus the SDK's own `AlgoliaUnreachableHostException` and
+401/403 `RequestException`, and re-raises as `EngineConnectionError`/
+`EngineAuthenticationError` with a hint pointing at credentials.
+`__init__` also checks for blank `app_id`/`api_key` before ever
+constructing a client, so missing credentials fail immediately with
+`MissingCredentialsError` instead of on the first network call.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from fiction_scout.dependencies import require_installed
 from fiction_scout.engines._external_index import fetch_matched_models
 from fiction_scout.engines.base import Engine, Page
-from fiction_scout.exceptions import IndexCreationNotSupportedError
+from fiction_scout.exceptions import (
+    EngineAuthenticationError,
+    EngineConnectionError,
+    IndexCreationNotSupportedError,
+    MissingCredentialsError,
+)
 
 if TYPE_CHECKING:
     from algoliasearch.search.client import SearchClientSync
@@ -75,6 +96,22 @@ if TYPE_CHECKING:
 # call — used as the page size for unbounded `.get()`/`.raw()` calls, not a
 # fiction-scout-chosen default.
 _MAX_HITS_PER_PAGE = 1000
+
+_CREDENTIALS_HINT = (
+    "Set 'algolia_app_id'/'algolia_api_key' in FICTION_SCOUT['extra'], or "
+    "the ALGOLIA_APP_ID/ALGOLIA_API_KEY environment variables."
+)
+_AUTH_HINT = (
+    "Verify 'algolia_app_id'/'algolia_api_key' (or ALGOLIA_APP_ID/"
+    "ALGOLIA_API_KEY) are correct and that the key has the permissions "
+    "this operation needs."
+)
+_CONNECTION_HINT = (
+    "This is commonly caused by an incorrect 'algolia_app_id' — Algolia "
+    "derives its request hostname from the app id, so a wrong one fails to "
+    "resolve rather than returning an auth error. Verify "
+    "'algolia_app_id'/ALGOLIA_APP_ID, then check network connectivity."
+)
 
 
 @dataclass
@@ -100,11 +137,40 @@ class AlgoliaEngine(Engine):
             feature="algolia", module_name="algoliasearch", extra="algolia"
         )
         if client is None:
+            missing = [
+                key
+                for key, value in (
+                    ("algolia_app_id", app_id),
+                    ("algolia_api_key", api_key),
+                )
+                if not value
+            ]
+            if missing:
+                raise MissingCredentialsError("algolia", missing, _CREDENTIALS_HINT)
             from algoliasearch.search.client import SearchClientSync
 
             client = SearchClientSync(app_id, api_key)
         self._client = client
         self._index_prefix = index_prefix
+
+    @contextmanager
+    def _translate_client_errors(self) -> Iterator[None]:
+        from algoliasearch.http.exceptions import (
+            AlgoliaUnreachableHostException,
+            RequestException,
+        )
+        from requests.exceptions import ConnectionError as RequestsConnectionError
+
+        try:
+            yield
+        except RequestException as exc:
+            if exc.status_code in (401, 403):
+                raise EngineAuthenticationError(
+                    "algolia", str(exc), _AUTH_HINT
+                ) from exc
+            raise
+        except (AlgoliaUnreachableHostException, RequestsConnectionError) as exc:
+            raise EngineConnectionError("algolia", str(exc), _CONNECTION_HINT) from exc
 
     def index_name_for(self, model: type, adapter: SearchableAdapter) -> str:
         return f"{self._index_prefix}{adapter.searchable_as(model)}"
@@ -120,17 +186,20 @@ class AlgoliaEngine(Engine):
         ]
         if not records:
             return
-        self._client.save_objects(index_name=index_name, objects=records)
+        with self._translate_client_errors():
+            self._client.save_objects(index_name=index_name, objects=records)
 
     def delete(self, models: list[Any], adapter: SearchableAdapter) -> None:
         if not models:
             return
         index_name = self.index_name_for(type(models[0]), adapter)
         object_ids = [str(adapter.get_scout_key(instance)) for instance in models]
-        self._client.delete_objects(index_name=index_name, object_ids=object_ids)
+        with self._translate_client_errors():
+            self._client.delete_objects(index_name=index_name, object_ids=object_ids)
 
     def flush(self, model: type, adapter: SearchableAdapter) -> None:
-        self._client.clear_objects(index_name=self.index_name_for(model, adapter))
+        with self._translate_client_errors():
+            self._client.clear_objects(index_name=self.index_name_for(model, adapter))
 
     def create_index(self, name: str, **options: Any) -> None:
         raise IndexCreationNotSupportedError(
@@ -140,7 +209,8 @@ class AlgoliaEngine(Engine):
         )
 
     def delete_index(self, name: str) -> None:
-        self._client.delete_index(index_name=name)
+        with self._translate_client_errors():
+            self._client.delete_index(index_name=name)
 
     def update_index_settings(
         self, model: type, adapter: SearchableAdapter, **settings: Any
@@ -160,7 +230,8 @@ class AlgoliaEngine(Engine):
         if not payload:
             return
         index_name = self.index_name_for(model, adapter)
-        self._client.set_settings(index_name=index_name, index_settings=payload)
+        with self._translate_client_errors():
+            self._client.set_settings(index_name=index_name, index_settings=payload)
 
     def _index_name(self, builder: Builder) -> str:
         return builder.index or self.index_name_for(builder.model, builder.adapter)
@@ -202,9 +273,10 @@ class AlgoliaEngine(Engine):
         filters = self._filters(builder)
         if filters:
             search_params["filters"] = filters
-        response = self._client.search_single_index(
-            index_name=self._index_name(builder), search_params=search_params
-        )
+        with self._translate_client_errors():
+            response = self._client.search_single_index(
+                index_name=self._index_name(builder), search_params=search_params
+            )
         return _AlgoliaSearchResult(
             hits=list(response.hits), total=response.nb_hits or 0
         )

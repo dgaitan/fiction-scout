@@ -65,3 +65,33 @@ class IndexCreationNotSupportedError(FictionScoutError):
         super().__init__(
             f"The '{driver_name}' driver does not support create_index: {reason}"
         )
+
+
+class MissingCredentialsError(FictionScoutError):
+    """A driver was constructed without credentials it needs to make requests."""
+
+    def __init__(self, driver_name: str, missing: Sequence[str], hint: str) -> None:
+        self.driver_name = driver_name
+        self.missing = list(missing)
+        joined = " and ".join(self.missing)
+        super().__init__(f"The '{driver_name}' driver is missing {joined}. {hint}")
+
+
+class EngineAuthenticationError(FictionScoutError):
+    """A search engine rejected the configured credentials."""
+
+    def __init__(self, driver_name: str, detail: str, hint: str) -> None:
+        self.driver_name = driver_name
+        self.detail = detail
+        super().__init__(
+            f"The '{driver_name}' driver's credentials were rejected: {detail} {hint}"
+        )
+
+
+class EngineConnectionError(FictionScoutError):
+    """A search engine's API could not be reached."""
+
+    def __init__(self, driver_name: str, detail: str, hint: str) -> None:
+        self.driver_name = driver_name
+        self.detail = detail
+        super().__init__(f"Could not reach the '{driver_name}' API: {detail} {hint}")

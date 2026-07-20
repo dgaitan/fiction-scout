@@ -203,7 +203,11 @@ class FakeAlgoliaClient:
     """
 
     def __init__(
-        self, *, search_hits: list[AlgoliaHit] | None = None, nb_hits: int = 0
+        self,
+        *,
+        search_hits: list[AlgoliaHit] | None = None,
+        nb_hits: int = 0,
+        raises: Exception | None = None,
     ) -> None:
         self.saved: list[tuple[str, list[dict[str, Any]]]] = []
         self.deleted: list[tuple[str, list[str]]] = []
@@ -213,6 +217,10 @@ class FakeAlgoliaClient:
         self.settings_updated: list[tuple[str, dict[str, Any]]] = []
         self._search_hits = search_hits or []
         self._nb_hits = nb_hits
+        # When set, every method below raises this instead of recording a
+        # call — simulates wire-boundary failures (connection errors,
+        # rejected credentials) without a live Algolia account.
+        self.raises = raises
 
     def set_search_response(self, *, hits: list[AlgoliaHit], nb_hits: int) -> None:
         """Configure what the next `search_single_index` call returns."""
@@ -220,23 +228,35 @@ class FakeAlgoliaClient:
         self._nb_hits = nb_hits
 
     def save_objects(self, *, index_name: str, objects: list[dict[str, Any]]) -> None:
+        if self.raises is not None:
+            raise self.raises
         self.saved.append((index_name, list(objects)))
 
     def delete_objects(self, *, index_name: str, object_ids: list[str]) -> None:
+        if self.raises is not None:
+            raise self.raises
         self.deleted.append((index_name, list(object_ids)))
 
     def clear_objects(self, *, index_name: str) -> None:
+        if self.raises is not None:
+            raise self.raises
         self.cleared.append(index_name)
 
     def delete_index(self, *, index_name: str) -> None:
+        if self.raises is not None:
+            raise self.raises
         self.deleted_indexes.append(index_name)
 
     def set_settings(self, *, index_name: str, index_settings: dict[str, Any]) -> None:
+        if self.raises is not None:
+            raise self.raises
         self.settings_updated.append((index_name, dict(index_settings)))
 
     def search_single_index(
         self, *, index_name: str, search_params: dict[str, Any]
     ) -> AlgoliaSearchResponse:
+        if self.raises is not None:
+            raise self.raises
         self.search_calls.append((index_name, dict(search_params)))
         return AlgoliaSearchResponse(hits=self._search_hits, nb_hits=self._nb_hits)
 

@@ -10,7 +10,10 @@ from fiction_scout.config import FictionScoutConfig
 from fiction_scout.engines.algolia import AlgoliaEngine
 from fiction_scout.engines.manager import EngineManager
 from fiction_scout.exceptions import (
+    EngineAuthenticationError,
+    EngineConnectionError,
     IndexCreationNotSupportedError,
+    MissingCredentialsError,
     MissingDependencyError,
 )
 from fiction_scout.search.builder import Builder
@@ -377,3 +380,86 @@ def test_given_index_prefix_in_config_when_resolved_then_prefix_wired() -> None:
 
     assert isinstance(engine, AlgoliaEngine)
     assert engine._index_prefix == "tenant_a_"
+
+
+def test_given_blank_app_id_when_engine_constructed_then_raises_missing_creds() -> None:
+    with pytest.raises(MissingCredentialsError) as excinfo:
+        AlgoliaEngine(app_id="", api_key="test-key")
+
+    assert excinfo.value.missing == ["algolia_app_id"]
+
+
+def test_given_blank_api_key_when_engine_constructed_then_raises_missing_creds() -> (
+    None
+):
+    with pytest.raises(MissingCredentialsError) as excinfo:
+        AlgoliaEngine(app_id="test-app", api_key="")
+
+    assert excinfo.value.missing == ["algolia_api_key"]
+
+
+def test_given_401_response_when_update_called_then_raises_engine_authentication_error(
+    articles: list[Article], adapter: FakeAdapter
+) -> None:
+    from algoliasearch.http.exceptions import RequestException
+
+    client = FakeAlgoliaClient(raises=RequestException("Invalid API key", 401))
+    engine = AlgoliaEngine(client=client)
+
+    with pytest.raises(EngineAuthenticationError) as excinfo:
+        engine.update([articles[0]], adapter)
+
+    assert "credentials were rejected" in str(excinfo.value)
+
+
+def test_given_403_response_when_search_called_then_raises_engine_authentication_error(
+    adapter: FakeAdapter,
+) -> None:
+    from algoliasearch.http.exceptions import RequestException
+
+    client = FakeAlgoliaClient(raises=RequestException("Forbidden", 403))
+    engine = AlgoliaEngine(client=client)
+    builder = Builder(Article, "star", engine=engine, adapter=adapter)
+
+    with pytest.raises(EngineAuthenticationError):
+        builder.get()
+
+
+def test_given_dns_resolution_failure_when_delete_called_then_raises_connection_error(
+    articles: list[Article], adapter: FakeAdapter
+) -> None:
+    from requests.exceptions import ConnectionError as RequestsConnectionError
+
+    client = FakeAlgoliaClient(raises=RequestsConnectionError("Failed to resolve host"))
+    engine = AlgoliaEngine(client=client)
+
+    with pytest.raises(EngineConnectionError) as excinfo:
+        engine.delete([articles[0]], adapter)
+
+    message = str(excinfo.value)
+    assert "Could not reach" in message
+    assert "algolia_app_id" in message
+
+
+def test_given_unreachable_hosts_when_flush_called_then_raises_connection_error(
+    adapter: FakeAdapter,
+) -> None:
+    from algoliasearch.http.exceptions import AlgoliaUnreachableHostException
+
+    client = FakeAlgoliaClient(raises=AlgoliaUnreachableHostException("no hosts left"))
+    engine = AlgoliaEngine(client=client)
+
+    with pytest.raises(EngineConnectionError):
+        engine.flush(Article, adapter)
+
+
+def test_given_non_auth_request_exception_when_update_called_then_propagates(
+    articles: list[Article], adapter: FakeAdapter
+) -> None:
+    from algoliasearch.http.exceptions import RequestException
+
+    client = FakeAlgoliaClient(raises=RequestException("Bad request", 400))
+    engine = AlgoliaEngine(client=client)
+
+    with pytest.raises(RequestException):
+        engine.update([articles[0]], adapter)
