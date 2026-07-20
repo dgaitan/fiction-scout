@@ -26,8 +26,7 @@ FICTION_SCOUT = {
   fetched back via `adapter.fetch_by_ids`.
 - `create_index()` **raises** `IndexCreationNotSupportedError` — Algolia has
   no explicit index-creation call; an index is created automatically on
-  first write. This mirrors Laravel Scout's own
-  `AlgoliaEngine::createIndex()`, which throws for the same reason.
+  first write.
 - `delete_index()` maps directly to the client's `delete_index`, which
   Algolia does support.
 - `.where()`/`.where_in()`/`.where_not_in()` translate into Algolia's

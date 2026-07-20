@@ -1,8 +1,7 @@
 # fiction-scout
 
 A simple, driver-based solution for adding full-text search to your models —
-for Django, Flask, or any other Python project. Inspired by
-[Laravel Scout](https://laravel.com/docs/master/scout)'s methodlogy.
+for Django, Flask, or any other Python project.
 
 Add the `Searchable` mixin to a model and fiction-scout keeps your search
 index in sync with it automatically, using each ORM's native change-tracking
@@ -18,8 +17,8 @@ drivers, Django + SQLAlchemy adapters, and the CLI are implemented. See
 
 ## Why
 
-Python has no single dominant ORM the way Laravel has Eloquent, so
-fiction-scout is built around one seam: the `SearchableAdapter` protocol in
+Python has no single dominant ORM, so fiction-scout is built around one
+seam: the `SearchableAdapter` protocol in
 `fiction_scout.protocols`. Every engine, the search `Builder`, and the CLI
 talk only to that protocol — never directly to Django or SQLAlchemy. Two
 adapters ship today (Django, SQLAlchemy); adding a third doesn't require

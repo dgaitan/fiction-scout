@@ -19,9 +19,29 @@ Post.search("Star Trek") \
 ```
 
 `.where()` only ever expresses equality (there's no 3-arg operator form).
-On `database`/`collection`, these translate directly to real query filters.
-On `algolia`/`meilisearch`, they translate into each driver's native filter
-syntax:
+
+**The field name means something different depending on the engine — this
+is the most common source of confusion with where clauses:**
+
+| Engine | `field` resolves against |
+|---|---|
+| `database` | The real ORM query, exactly as if you'd written it by hand — including relation-traversal syntax. **Not** `to_searchable_array()` keys. |
+| `collection` | The literal keys of the dict returned by `to_searchable_array()` — matching happens against that dict in Python, nothing else. |
+| `algolia` / `meilisearch` | Also the keys of `to_searchable_array()`, since that's what got pushed to the index — translated into each driver's native filter syntax below. |
+
+Concretely: given a Django model with `director = models.ForeignKey(Director, ...)`
+and `to_searchable_array()` returning `{"director": self.director.name}`,
+`.where_in("director", [...])` only works on `collection`/`algolia`/
+`meilisearch`. On `database`, Django resolves `director__in` against the
+literal `director` field — the FK column, an integer id — not the related
+`Director.name`. You need `.where_in("director__name", [...])` instead, the
+same relation-traversal syntax you'd use in a raw
+`Movie.objects.filter(director__name__in=[...])` call. See
+[`database`'s own notes on this](engines/database.md#where-clause-fields-are-real-query-paths)
+for the full explanation.
+
+On `algolia`/`meilisearch`, `.where()`/`.where_in()`/`.where_not_in()`
+translate into each driver's native filter syntax:
 
 | fiction-scout | Algolia `filters` | Meilisearch `filter` |
 |---|---|---|
@@ -30,9 +50,9 @@ syntax:
 | `.where_not_in("category", ["c"])` | `(NOT category:'c')` | `category NOT IN ["c"]` |
 
 An empty `.where_in(field, [])` against Algolia becomes the `'0:1'`
-always-false sentinel (matching Algolia and Laravel Scout's own convention);
-against Meilisearch it becomes `field IN []`, which is valid and also always
-false — no sentinel needed there.
+always-false sentinel (matching Algolia's own convention); against
+Meilisearch it becomes `field IN []`, which is valid and also always false
+— no sentinel needed there.
 
 **Filtering by a field requires that field to actually be filterable on the
 engine's side first.** Meilisearch rejects a filter on a field that isn't in
@@ -63,7 +83,7 @@ engine (`collection`, `algolia`, `meilisearch`), matching records are already
 determined by the search index before this callback ever runs — it only
 customizes how the matched rows get fetched back (eager-loading a relation,
 for instance), and any filtering inside it has no effect on which records
-matched. This mirrors Laravel Scout's own documented `query()` caveat.
+matched.
 
 ## Pagination
 

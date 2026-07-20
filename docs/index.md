@@ -1,10 +1,9 @@
 # fiction-scout
 
 A driver-based full-text search layer that auto-syncs your models to a
-search index, inspired by [Laravel Scout](https://laravel.com/docs/master/scout).
-Add a mixin to a model, and fiction-scout keeps its search index up to date
-using your ORM's own change-tracking mechanism — no polling, no manual
-bookkeeping.
+search index. Add a mixin to a model, and fiction-scout keeps its search
+index up to date using your ORM's own change-tracking mechanism — no
+polling, no manual bookkeeping.
 
 ## What's built today
 

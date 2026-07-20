@@ -94,9 +94,9 @@ On `save()`, the Django signal handler checks this per instance: `True`
 indexes it, `False` removes it from the index (even if it was previously
 indexed and just transitioned to unpublished) — so flipping `status` back
 and forth correctly adds and removes the record without any extra code.
-Calling `.searchable()` directly bypasses this check, same as Laravel Scout's
-own `shouldBeSearchable()` — it's a hook for the *automatic* sync path, not
-a hard guarantee that an instance is never indexed.
+Calling `.searchable()` directly bypasses this check — it's a hook for the
+*automatic* sync path, not a hard guarantee that an instance is never
+indexed.
 
 ## Soft delete
 
@@ -116,8 +116,6 @@ excludes it, and `DjangoAdapter.apply_trashed_filter` filters it out of
 `.only_trashed()` retrieve soft-deleted rows anyway, but **only against the
 `database` and `collection` engines** — Algolia and Meilisearch remove a
 soft-deleted record from their index entirely rather than keeping it
-tagged and filterable, unlike Laravel Scout's own `soft_delete` config
-(which keeps deleted records in-index behind a `__soft_deleted` filterable
-attribute). If you need "search including soft-deleted records" against an
-external engine, that record simply isn't there to find — this is a
-deliberate v1 scope decision, not a bug.
+tagged and filterable. If you need "search including soft-deleted records"
+against an external engine, that record simply isn't there to find — this
+is a deliberate v1 scope decision, not a bug.
