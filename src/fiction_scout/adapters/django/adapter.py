@@ -5,6 +5,7 @@ import re
 from collections.abc import Iterator, Sequence
 from typing import TYPE_CHECKING, Any
 
+from django.db import connections
 from django.db.models import CharField, EmailField, Q, SlugField, TextField, URLField
 
 from fiction_scout.strategies import SearchStrategy, get_column_strategies
@@ -15,6 +16,13 @@ if TYPE_CHECKING:
     from fiction_scout.adapters.django.mixin import SearchableMixin
 
 _TEXT_FIELD_TYPES = (CharField, TextField, SlugField, EmailField, URLField)
+
+# `\b` is a word-boundary escape in Python's `re` (SQLite's REGEXP shells out
+# to it) and in MySQL's ICU-backed regex engine, but PostgreSQL's native ARE
+# regex engine doesn't recognize `\b` as a boundary at all — it silently
+# matches nothing. Postgres's own word-boundary escape is `\y`.
+_WORD_BOUNDARY_BY_VENDOR = {"postgresql": r"\y"}
+_DEFAULT_WORD_BOUNDARY = r"\b"
 
 
 class DjangoAdapter:
@@ -73,9 +81,13 @@ class DjangoAdapter:
         columns = self._searchable_columns(model, strategies)
         if not columns:
             return query.none()
+        boundary = _WORD_BOUNDARY_BY_VENDOR.get(
+            connections[query.db].vendor, _DEFAULT_WORD_BOUNDARY
+        )
         condition = Q()
         for column in columns:
-            condition |= self._column_lookup(column, strategies.get(column), term)
+            strategy = strategies.get(column)
+            condition |= self._column_lookup(column, strategy, term, boundary)
         return query.filter(condition)
 
     def _searchable_columns(
@@ -87,16 +99,12 @@ class DjangoAdapter:
         return sorted(auto_detected | set(strategies))
 
     def _column_lookup(
-        self, column: str, strategy: SearchStrategy | None, term: str
+        self, column: str, strategy: SearchStrategy | None, term: str, boundary: str
     ) -> Q:
         if strategy is SearchStrategy.PREFIX:
             return Q(**{f"{column}__istartswith": term})
         if strategy is SearchStrategy.FULL_TEXT:
-            # Whole-word regex match rather than a database-specific
-            # full-text index, so this adapter behaves identically on
-            # SQLite (tests) and Postgres alike. Swap in
-            # django.contrib.postgres.search.SearchVector for a real index.
-            return Q(**{f"{column}__iregex": rf"\b{re.escape(term)}\b"})
+            return Q(**{f"{column}__iregex": rf"{boundary}{re.escape(term)}{boundary}"})
         return Q(**{f"{column}__icontains": term})
 
     def apply_where(

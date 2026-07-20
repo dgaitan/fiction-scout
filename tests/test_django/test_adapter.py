@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
@@ -143,3 +145,27 @@ def test_given_database_driver_when_search_get_called_then_returns_instances() -
     results = Article.search("Star").get()
 
     assert results and all(isinstance(item, Article) for item in results)
+
+
+def _iregex_pattern(query: Any) -> str:
+    or_node = query.query.where.children[0]
+    lookup = next(lu for lu in or_node.children if lu.lookup_name == "iregex")
+    return lookup.rhs
+
+
+def test_given_postgresql_vendor_when_full_text_regex_built_then_uses_postgres_boundary(
+    adapter: DjangoAdapter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(connection, "vendor", "postgresql")
+
+    query = adapter.apply_search_term(adapter.query_all(Article), Article, "star")
+
+    assert _iregex_pattern(query) == r"\ystar\y"
+
+
+def test_given_sqlite_vendor_when_full_text_regex_built_then_uses_perl_word_boundary(
+    adapter: DjangoAdapter,
+) -> None:
+    query = adapter.apply_search_term(adapter.query_all(Article), Article, "star")
+
+    assert _iregex_pattern(query) == r"\bstar\b"
