@@ -33,6 +33,18 @@ if importlib.util.find_spec("meilisearch") is None:
     # Same reasoning as the Django+Algolia guard above: this one test module
     # needs both `django` and `meilisearch` together to even collect.
     collect_ignore += ["test_django/test_meilisearch_integration.py"]
+if (
+    not os.environ.get("DJANGO_SETTINGS_MODULE")
+    or importlib.util.find_spec("sqlalchemy") is None
+):
+    # Same "needs both extras together" reasoning as the Django+Algolia guard
+    # above: defining any `django.db.models.Model` subclass (the Django
+    # `SearchableMixin` this file compares against) requires configured
+    # Django settings, not just the package installed — `nox -s
+    # test_sqlalchemy` installs sqlalchemy without django at all, and even a
+    # plain `pytest` in a dev venv with both extras installed but no
+    # DJANGO_SETTINGS_MODULE set would otherwise fail at collection.
+    collect_ignore += ["test_sqlalchemy/test_mixin_parity.py"]
 
 
 @pytest.fixture
