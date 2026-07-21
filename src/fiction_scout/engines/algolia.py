@@ -66,7 +66,12 @@ catches that, plus the SDK's own `AlgoliaUnreachableHostException` and
 `EngineAuthenticationError` with a hint pointing at credentials.
 `__init__` also checks for blank `app_id`/`api_key` before ever
 constructing a client, so missing credentials fail immediately with
-`MissingCredentialsError` instead of on the first network call.
+`MissingCredentialsError` instead of on the first network call. A search
+whose `filters` reference a field that isn't declared in the index's
+`attributesForFaceting` gets the same treatment — Algolia rejects it with a
+400 `RequestException` naming that setting, which `_translate_client_errors`
+recognizes and re-raises as `UnfilterableAttributeError` with a hint
+pointing at `attributes_for_faceting`/`sync-index-settings`.
 """
 
 from __future__ import annotations
@@ -84,6 +89,7 @@ from fiction_scout.exceptions import (
     EngineConnectionError,
     IndexCreationNotSupportedError,
     MissingCredentialsError,
+    UnfilterableAttributeError,
 )
 
 if TYPE_CHECKING:
@@ -111,6 +117,13 @@ _CONNECTION_HINT = (
     "derives its request hostname from the app id, so a wrong one fails to "
     "resolve rather than returning an auth error. Verify "
     "'algolia_app_id'/ALGOLIA_APP_ID, then check network connectivity."
+)
+_FACETING_HINT = (
+    "A field passed to .where()/.where_in()/.where_not_in() must be listed "
+    "in this index's 'attributes_for_faceting' setting. Add it under this "
+    "model's entry in FICTION_SCOUT['extra']['index_settings'] (keyed by "
+    "the model's dotted path) and run 'sync-index-settings <model>' (or "
+    "'manage.py fiction_scout sync-index-settings <model>'), then retry."
 )
 
 
@@ -167,6 +180,10 @@ class AlgoliaEngine(Engine):
             if exc.status_code in (401, 403):
                 raise EngineAuthenticationError(
                     "algolia", str(exc), _AUTH_HINT
+                ) from exc
+            if exc.status_code == 400 and "attributesForFaceting" in str(exc):
+                raise UnfilterableAttributeError(
+                    "algolia", str(exc), _FACETING_HINT
                 ) from exc
             raise
         except (AlgoliaUnreachableHostException, RequestsConnectionError) as exc:
@@ -230,8 +247,20 @@ class AlgoliaEngine(Engine):
         if not payload:
             return
         index_name = self.index_name_for(model, adapter)
+        # `set_settings` accepts a plain dict, but only an actual
+        # `IndexSettings` instance gets alias-translated (snake_case field
+        # name -> Algolia's camelCase wire name, e.g.
+        # attributes_for_faceting -> attributesForFaceting) by the SDK's
+        # serializer — a raw dict is sent to Algolia's REST API verbatim,
+        # which then rejects the unrecognized snake_case key. Round-tripping
+        # through `IndexSettings(**payload).to_dict()` gets the correct
+        # wire-format keys while keeping `index_settings` a plain dict, same
+        # shape the test double (`FakeAlgoliaClient`) expects.
+        wire_payload = IndexSettings(**payload).to_dict()
         with self._translate_client_errors():
-            self._client.set_settings(index_name=index_name, index_settings=payload)
+            self._client.set_settings(
+                index_name=index_name, index_settings=wire_payload
+            )
 
     def _index_name(self, builder: Builder) -> str:
         return builder.index or self.index_name_for(builder.model, builder.adapter)

@@ -95,3 +95,14 @@ class EngineConnectionError(FictionScoutError):
         self.driver_name = driver_name
         self.detail = detail
         super().__init__(f"Could not reach the '{driver_name}' API: {detail} {hint}")
+
+
+class UnfilterableAttributeError(FictionScoutError):
+    """A `.where()`/`.where_in()`/`.where_not_in()` field isn't filterable."""
+
+    def __init__(self, driver_name: str, detail: str, hint: str) -> None:
+        self.driver_name = driver_name
+        self.detail = detail
+        super().__init__(
+            f"The '{driver_name}' driver rejected a filter: {detail} {hint}"
+        )

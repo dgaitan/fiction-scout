@@ -15,6 +15,7 @@ from fiction_scout.exceptions import (
     IndexCreationNotSupportedError,
     MissingCredentialsError,
     MissingDependencyError,
+    UnfilterableAttributeError,
 )
 from fiction_scout.search.builder import Builder
 from tests.support import (
@@ -332,8 +333,8 @@ def test_given_known_settings_when_update_settings_called_then_set_settings_invo
         (
             "articles",
             {
-                "searchable_attributes": ["title", "body"],
-                "custom_ranking": ["desc(views)"],
+                "searchableAttributes": ["title", "body"],
+                "customRanking": ["desc(views)"],
             },
         )
     ]
@@ -463,3 +464,37 @@ def test_given_non_auth_request_exception_when_update_called_then_propagates(
 
     with pytest.raises(RequestException):
         engine.update([articles[0]], adapter)
+
+
+def test_given_undeclared_facet_attribute_when_search_called_then_raises_filter_error(
+    adapter: FakeAdapter,
+) -> None:
+    from algoliasearch.http.exceptions import RequestException
+
+    message = (
+        "Invalid Filter syntax, the offending part is: 'status' isn't a "
+        "faceted attribute, please use attributesForFaceting to declare it"
+    )
+    client = FakeAlgoliaClient(raises=RequestException(message, 400))
+    engine = AlgoliaEngine(client=client)
+    builder = Builder(Article, "star", engine=engine, adapter=adapter).where(
+        "status", "published"
+    )
+
+    with pytest.raises(UnfilterableAttributeError) as excinfo:
+        builder.get()
+
+    assert "attributes_for_faceting" in str(excinfo.value)
+
+
+def test_given_bad_request_without_faceting_hint_when_search_called_then_propagates(
+    adapter: FakeAdapter,
+) -> None:
+    from algoliasearch.http.exceptions import RequestException
+
+    client = FakeAlgoliaClient(raises=RequestException("Invalid query syntax", 400))
+    engine = AlgoliaEngine(client=client)
+    builder = Builder(Article, "star", engine=engine, adapter=adapter)
+
+    with pytest.raises(RequestException):
+        builder.get()

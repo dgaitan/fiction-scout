@@ -9,7 +9,7 @@ from fiction_scout import orchestration
 from fiction_scout.config import FictionScoutConfig
 from fiction_scout.engines.manager import EngineManager
 from fiction_scout.engines.meilisearch import MeilisearchEngine
-from fiction_scout.exceptions import MissingDependencyError
+from fiction_scout.exceptions import MissingDependencyError, UnfilterableAttributeError
 from fiction_scout.search.builder import Builder
 from tests.support import Article, FakeAdapter, FakeMeilisearchClient, SpyDispatcher
 
@@ -115,6 +115,21 @@ def test_given_index_does_not_exist_when_search_called_then_empty_results_not_ra
     results = builder.get()
 
     assert results == []
+
+
+def test_given_unfilterable_attribute_when_search_called_then_raises_filter_error(
+    adapter: FakeAdapter,
+) -> None:
+    client = FakeMeilisearchClient(search_raises_invalid_filter=True)
+    engine = MeilisearchEngine(client=client)
+    builder = Builder(Article, "star", engine=engine, adapter=adapter).where(
+        "release_year", 2000
+    )
+
+    with pytest.raises(UnfilterableAttributeError) as excinfo:
+        builder.get()
+
+    assert "filterable_attributes" in str(excinfo.value)
 
 
 def test_given_missing_index_when_create_index_called_then_created_with_pk() -> None:

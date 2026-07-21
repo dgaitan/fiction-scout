@@ -290,6 +290,28 @@ def _meilisearch_index_not_found_error() -> Exception:
     return MeilisearchApiError("index not found", _FakeHttpResponse())  # type: ignore[arg-type]
 
 
+def _meilisearch_invalid_search_filter_error() -> Exception:
+    """Build a real `MeilisearchApiError`, code="invalid_search_filter".
+
+    Mirrors `_meilisearch_index_not_found_error()` above — same rationale
+    for raising the SDK's real exception class instead of a fake stand-in.
+    """
+    import json
+
+    from meilisearch.errors import MeilisearchApiError
+
+    class _FakeHttpResponse:
+        status_code = 400
+        text = json.dumps(
+            {
+                "message": "Attribute `release_year` is not filterable.",
+                "code": "invalid_search_filter",
+            }
+        )
+
+    return MeilisearchApiError("invalid filter", _FakeHttpResponse())  # type: ignore[arg-type]
+
+
 class FakeMeilisearchIndex:
     """A hand-rolled fake standing in for `meilisearch.Index`."""
 
@@ -319,6 +341,8 @@ class FakeMeilisearchIndex:
         self, query: str, opt_params: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         self._client.search_calls.append((self.uid, query, dict(opt_params or {})))
+        if self._client.search_raises_invalid_filter:
+            raise _meilisearch_invalid_search_filter_error()
         if self._client.search_raises_index_not_found:
             raise _meilisearch_index_not_found_error()
         return {
@@ -344,8 +368,10 @@ class FakeMeilisearchClient:
         estimated_total_hits: int = 0,
         existing_index_uids: set[str] | None = None,
         search_raises_index_not_found: bool = False,
+        search_raises_invalid_filter: bool = False,
     ) -> None:
         self.search_raises_index_not_found = search_raises_index_not_found
+        self.search_raises_invalid_filter = search_raises_invalid_filter
         self.added: list[tuple[str, list[dict[str, Any]], str | None]] = []
         self.deleted: list[tuple[str, list[Any]]] = []
         self.cleared: list[str] = []

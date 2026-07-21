@@ -31,10 +31,13 @@ attribute, `with_trashed()`/`only_trashed()` stay database-engine-only.
 **`where`/`where_in`/`where_not_in` translate to Meilisearch's `filter`
 syntax:** `_filters()` mirrors Laravel Scout's `MeilisearchEngine::filters()`
 — see that method's docstring for the exact value-formatting and combinator
-rules it reproduces. As with Laravel's own implementation, using `.where()`
-against a field that isn't a configured filterable attribute fails at the
-Meilisearch API level, not in this module — see the "Index settings"
-section once `update_index_settings` exists for this driver.
+rules it reproduces. Unlike Laravel's own implementation, `.where()` against
+a field that isn't a configured filterable attribute doesn't reach the
+caller as a raw `MeilisearchApiError` — `_run_search` recognizes the SDK's
+own `code == "invalid_search_filter"` and re-raises as
+`UnfilterableAttributeError` with a hint pointing at `filterable_attributes`
+and the `sync-index-settings` command (see "Index settings" below for how
+to configure it).
 
 **`delete_documents(ids=...)` triggers a `DeprecationWarning` from the
 client itself** (in favor of `filter=`), left as-is because filtering by the
@@ -73,6 +76,7 @@ from typing import TYPE_CHECKING, Any
 from fiction_scout.dependencies import require_installed
 from fiction_scout.engines._external_index import fetch_matched_models
 from fiction_scout.engines.base import Engine, Page
+from fiction_scout.exceptions import UnfilterableAttributeError
 
 if TYPE_CHECKING:
     from meilisearch import Client
@@ -84,6 +88,14 @@ if TYPE_CHECKING:
 # page size for unbounded `.get()`/`.raw()` calls, not a fiction-scout-chosen
 # default.
 _MAX_HITS = 1000
+
+_FACETING_HINT = (
+    "A field passed to .where()/.where_in()/.where_not_in() must be listed "
+    "in this index's 'filterable_attributes' setting. Add it under this "
+    "model's entry in FICTION_SCOUT['extra']['index_settings'] (keyed by "
+    "the model's dotted path) and run 'sync-index-settings <model>' (or "
+    "'manage.py fiction_scout sync-index-settings <model>'), then retry."
+)
 
 # snake_case (this project's config convention) -> camelCase (Meilisearch's
 # REST API) for every top-level key `index.update_settings()` accepts. Keys
@@ -258,6 +270,10 @@ class MeilisearchEngine(Engine):
                 builder.term, params
             )
         except MeilisearchApiError as error:
+            if error.code == "invalid_search_filter":
+                raise UnfilterableAttributeError(
+                    "meilisearch", str(error), _FACETING_HINT
+                ) from error
             # A model with nothing indexed yet (no sync has run) has no
             # Meilisearch index at all, since Meilisearch only creates one
             # implicitly on first write — searching it is a normal "no

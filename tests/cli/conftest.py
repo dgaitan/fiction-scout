@@ -37,7 +37,16 @@ class SettingsEngine(SpyEngine):
 def settings_engine(monkeypatch: pytest.MonkeyPatch) -> Iterator[SettingsEngine]:
     engine = SettingsEngine()
     manager = EngineManager(
-        FictionScoutConfig(driver="spy", extra={"searchable_attributes": ["title"]})
+        FictionScoutConfig(
+            driver="spy",
+            extra={
+                "index_settings": {
+                    "tests.django_app.models.Article": {
+                        "searchable_attributes": ["title"]
+                    }
+                }
+            },
+        )
     )
     manager.extend("spy", lambda: engine)
     monkeypatch.setattr(runtime, "_engine_manager", manager)
