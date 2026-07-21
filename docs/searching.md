@@ -57,8 +57,10 @@ Meilisearch it becomes `field IN []`, which is valid and also always false
 **Filtering by a field requires that field to actually be filterable on the
 engine's side first.** Meilisearch rejects a filter on a field that isn't in
 that index's `filterableAttributes`; Algolia requires the field to be listed
-in `attributesForFaceting`. See each engine's "Index settings" section
-([algolia](engines/algolia.md#index-settings),
+in `attributesForFaceting`. Both engines raise fiction-scout's own
+`UnfilterableAttributeError` (not a raw SDK exception) when this happens,
+naming the field and pointing at the fix. See each engine's "Index
+settings" section ([algolia](engines/algolia.md#index-settings),
 [meilisearch](engines/meilisearch.md#index-settings)) to configure that.
 
 ## Custom index

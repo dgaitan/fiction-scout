@@ -44,15 +44,45 @@ FICTION_SCOUT = {
 }
 ```
 
-Index-settings keys (`searchable_attributes`, `filterable_attributes`, etc.)
-also live in this same `extra` dict — see each engine's "Index settings"
-section ([algolia](engines/algolia.md#index-settings),
+## Per-model index settings
+
+Connection keys (`algolia_app_id`, `meilisearch_url`, etc.) are genuinely
+global — one Algolia application or Meilisearch server per process. Index
+settings (`searchable_attributes`, `filterable_attributes`,
+`attributes_for_faceting`, `custom_ranking`, etc.) are **not** global — each
+model has its own index with its own fields, so they're nested under
+`extra["index_settings"]`, keyed by the model's dotted path (the same path
+you pass to `sync-index-settings`):
+
+```python
+FICTION_SCOUT = {
+    "driver": "algolia",
+    "algolia_app_id": "...",
+    "algolia_api_key": "...",
+    "index_settings": {
+        "myapp.models.Post": {
+            "searchable_attributes": ["title", "body"],
+            "attributes_for_faceting": ["category"],
+        },
+        "myapp.models.Author": {
+            "attributes_for_faceting": ["country"],
+        },
+    },
+}
+```
+
+```bash
+fiction-scout sync-index-settings myapp.models.Post
+```
+
+only applies `index_settings["myapp.models.Post"]` — `Author`'s settings
+never reach `Post`'s index, and vice versa. Each engine's `update_index_settings`
+still whitelists only the keys it recognizes from that model's own entry
+and silently drops the rest — see each engine's "Index settings" section
+([algolia](engines/algolia.md#index-settings),
 [meilisearch](engines/meilisearch.md#index-settings)) for the full accepted
-key list per driver. The `sync-index-settings` CLI command passes the
-*entire* `extra` dict to the resolved engine; each engine's
-`update_index_settings` whitelists only the keys it recognizes and silently
-drops the rest (including unrelated connection keys like `algolia_app_id`
-when the driver is `meilisearch`, or vice versa).
+key list per driver. A model with no entry in `index_settings` is a no-op,
+same as having no relevant keys at all.
 
 ## Multi-tenancy with `index_prefix`
 
