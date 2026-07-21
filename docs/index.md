@@ -175,6 +175,17 @@ Under Django, the same four subcommands are available as
 `manage.py fiction_scout <subcommand> <dotted.model.Path>` — it calls the
 identical underlying functions, just with Django's own argument parsing.
 
+## Tutorials
+
+Two full walkthroughs building the same Movies API — list, filter by
+director/category, full-text search — end to end:
+
+- [Django + Algolia](tutorials/django-algolia-movies-api.md)
+- [FastAPI + SQLAlchemy](tutorials/fastapi-sqlalchemy-movies-api.md) (the
+  built-in `database` driver — no external account needed)
+
+See [Tutorials overview](tutorials/index.md) for how the two compare.
+
 ## Extending
 
 - [Adding a search driver](extending/custom-drivers.md) — implement `Engine`,

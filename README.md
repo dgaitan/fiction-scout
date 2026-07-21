@@ -92,7 +92,8 @@ class Post(SearchableMixin, models.Model):
 results = Post.search("Star Trek").get()
 ```
 
-Full documentation: [`docs/index.md`](docs/index.md).
+Full documentation: [`docs/index.md`](docs/index.md). Full tutorials
+building a Movies API end to end: [`docs/tutorials/`](docs/tutorials/index.md).
 
 ## Development
 
