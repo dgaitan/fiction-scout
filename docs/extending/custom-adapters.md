@@ -4,9 +4,11 @@ An adapter translates between one ORM's models and fiction-scout's core.
 Engines, the search `Builder`, and the CLI never import Django or SQLAlchemy
 directly — everything talks to the `SearchableAdapter` protocol in
 `fiction_scout.protocols`. That's the seam that makes a new ORM a
-pure-addition change: the Django adapter is the only shipped, tested
-reference to build a second one against, since the SQLAlchemy adapter
-hasn't landed yet.
+pure-addition change: `adapters/django/` and `adapters/sqlalchemy/` are two
+independently-shipped, tested references to build a third one against — compare
+them to see what's genuinely shared shape vs. what's ORM-specific and
+shouldn't be forced to match (see the sync-trigger and `runtime.py` sections
+below for the one place they meaningfully diverge).
 
 A full adapter has three pieces, mirroring `adapters/django/`:
 
@@ -136,6 +138,19 @@ and a real singleton matters in production too: it's the only way an app's
 own `EngineManager.extend()` custom-driver registration survives across
 requests.
 
+**Django's `get_adapter()` lazily self-constructs on first access because
+there's nothing external it needs — `DjangoAdapter()` takes no arguments,
+since Django's own settings already tell it which database to talk to.**
+SQLAlchemy has no equivalent implicit registry: `SQLAlchemyAdapter` needs a
+`session_factory` from somewhere, so `adapters/sqlalchemy/runtime.py`
+replaces the silent lazy-create with an explicit
+`configure(session_factory=..., config=...)` that an app calls once at
+startup; `get_adapter()`/`get_engine_manager()` raise a clear `RuntimeError`
+if called first. This is a legitimate per-ORM difference, not something to
+paper over by forcing your ORM into the zero-arg pattern if it also has no
+implicit connection to discover — re-derive from what your ORM actually
+gives you for free.
+
 ## 3. Wiring the sync trigger
 
 This is the one piece that's genuinely ORM-specific, and the one place
@@ -150,12 +165,18 @@ same thing":
   `make_unsearchable` already do, and duplicating the check in the signal
   handler would violate the DRY principle this whole design exists to
   enforce.
-- **A future SQLAlchemy adapter** would need a session `after_commit` hook,
-  *not* `after_insert` — SQLAlchemy must avoid indexing rows from a
-  transaction that later rolls back, a failure mode Django's
-  post-commit-adjacent signals don't share in the same way. When this
-  adapter is built, that reasoning belongs in the module docstring of the
-  file implementing the hook, not just in this doc.
+- **SQLAlchemy** uses a `Session` `before_commit`/`after_commit` event pair
+  (`adapters/sqlalchemy/events.py`), *not* `after_insert`/`after_update`/
+  `after_delete` — those per-row mapper events fire mid-flush, before the
+  surrounding transaction is guaranteed to actually land, and SQLAlchemy
+  must avoid indexing rows from a transaction that later rolls back, a
+  failure mode Django's post-commit-adjacent signals don't share in the same
+  way. `before_commit` fires *before* the flush (`session.new`/`dirty`/
+  `deleted` are still fully populated there) and is used only to *capture*
+  which instances are about to be committed, by object identity; the actual
+  engine calls happen in `after_commit`, once the transaction is durable —
+  see that module's docstring for the full reasoning, verified directly
+  against SQLAlchemy's own commit-sequence source rather than assumed.
 
 Don't assume every ORM's sync trigger looks like Django's — re-derive from
 your ORM's actual commit/rollback semantics before choosing where to hook
@@ -171,9 +192,15 @@ zero adapter-specific code.
 
 ## Real implementation to read
 
-`src/fiction_scout/adapters/django/` — `adapter.py` (the
-`SearchableAdapter` implementation), `mixin.py` (the model-facing surface),
-`runtime.py` (the singleton pattern), `signals.py` +`apps.py` (the sync
-trigger). Read it end to end before starting a second adapter; the shape
-should look almost identical for anything with real transactional
-semantics.
+- `src/fiction_scout/adapters/django/` — `adapter.py` (the
+  `SearchableAdapter` implementation), `mixin.py` (the model-facing
+  surface), `runtime.py` (the lazy-singleton pattern), `signals.py` +
+  `apps.py` (the sync trigger).
+- `src/fiction_scout/adapters/sqlalchemy/` — same shape, plus
+  `runtime.configure()` where Django self-constructs, and `events.py`'s
+  `before_commit`/`after_commit` pair where Django uses signals.
+
+Read both end to end before starting a third adapter — where they agree is
+the real shared contract; where they differ (`runtime.py`'s configure-vs-lazy
+split, the sync-trigger mechanism) is genuinely ORM-specific, not a gap to
+be "fixed" by unifying them.

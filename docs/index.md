@@ -14,24 +14,28 @@ polling, no manual bookkeeping.
 - **`database`** and **`collection`** engines — no external service required.
   See [Engines](engines/database.md).
 - **Django ORM adapter** — signal-based auto-sync
-  (`fiction_scout.adapters.django.SearchableMixin`).
+  (`fiction_scout.adapters.django.mixin.SearchableMixin`).
+- **SQLAlchemy adapter** — session-event auto-sync via `before_commit`/
+  `after_commit` (`fiction_scout.adapters.sqlalchemy.mixin.SearchableMixin`).
+  Unlike Django, there's no settings-style implicit registry to discover a
+  connection from — call `fiction_scout.adapters.sqlalchemy.runtime.configure(session_factory=...)`
+  once at startup.
 - **Standalone CLI** (`fiction-scout import|queue-import|flush|sync-index-settings`)
   and a Django management command bridge (`manage.py fiction_scout ...`) that
   wrap the exact same underlying functions.
 - **Celery dispatcher** — background indexing via the `Dispatcher` protocol.
 - **Algolia** and **Meilisearch** engines — see [Engines](engines/algolia.md).
 
-**Not built yet:** a SQLAlchemy adapter and an Elasticsearch engine. Both
-have extension points already in place (`SearchableAdapter`, `Engine`) —
-see [Extending: custom adapters](extending/custom-adapters.md) and
-[Extending: custom drivers](extending/custom-drivers.md) — but neither ships
-today. Installing `fiction-scout[sqlalchemy]` or configuring the
-`elasticsearch` driver will not work until they land.
+**Not built yet:** an Elasticsearch engine. It has an extension point
+already in place (`Engine`) — see
+[Extending: custom drivers](extending/custom-drivers.md) — but doesn't ship
+today. Configuring the `elasticsearch` driver will not work until it lands.
 
 ## Installation
 
 ```bash
 pip install "fiction-scout[django]"       # Django projects
+pip install "fiction-scout[sqlalchemy]"   # SQLAlchemy / Flask-SQLAlchemy projects
 pip install "fiction-scout[algolia]"      # optional: Algolia search engine
 pip install "fiction-scout[meilisearch]"  # optional: Meilisearch search engine
 pip install "fiction-scout[celery]"       # optional: background indexing via Celery
@@ -61,6 +65,45 @@ results = Post.search("Star Trek").get()
 
 A complete, runnable version of this is in
 [`examples/django_example/`](https://github.com/davidgaitan/fiction-scout/tree/main/examples/django_example).
+
+## Quickstart (SQLAlchemy)
+
+SQLAlchemy has no settings-style implicit registry to auto-discover a
+database connection from — call `runtime.configure()` once at startup with
+your `sessionmaker`. This is also what wires up the `before_commit`/
+`after_commit` auto-sync hooks (the SQLAlchemy equivalent of Django's
+`post_save`/`post_delete` signals — see [Indexing](indexing.md) for why the
+two mechanisms are deliberately different, not just differently spelled).
+
+```python
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+
+from fiction_scout.adapters.sqlalchemy import runtime
+from fiction_scout.adapters.sqlalchemy.mixin import SearchableMixin
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Post(SearchableMixin, Base):
+    __tablename__ = "posts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str]
+    body: Mapped[str]
+
+
+Session = sessionmaker(bind=engine)
+runtime.configure(session_factory=Session)
+
+with Session() as session:
+    post = Post(title="Star Trek II", body="The Wrath of Khan")
+    session.add(post)
+    session.commit()  # synced to the index only once the transaction lands
+
+results = Post.search("Star Trek").get()
+```
 
 ## The `Searchable` mixin's public surface
 

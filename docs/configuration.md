@@ -13,7 +13,10 @@ searchable model. Resolution order (`fiction_scout.config.resolve_config`):
 5. Bare defaults, if nothing above applies.
 
 The first resolver that finds applicable settings wins; nothing lower in the
-list runs.
+list runs. SQLAlchemy has no settings-style resolver of its own (there's no
+`sessionmaker`-adjacent config object to read `FICTION_SCOUT` off of) — pass
+an explicit `FictionScoutConfig` to `runtime.configure(session_factory=...,
+config=...)`, or fall back to the `FICTION_SCOUT_*` environment variables.
 
 ## Fields
 
@@ -24,7 +27,7 @@ list runs.
 | `index_prefix` | `""` | Prepended to every index name **on external-index drivers only** (`algolia`, `meilisearch`). Lets multiple tenants/environments share one Algolia application or Meilisearch server without index-name collisions. Has no effect on `database`/`collection`, which query real DB tables by their real names, not a resolved "index name." An explicit `.within("some_index")` call bypasses the prefix entirely, same as it bypasses `searchable_as()` — see [Searching](searching.md). |
 | `extra` | `{}` | Anything not in the fields above lands here — driver-specific settings (`algolia_app_id`, `meilisearch_url`, index-settings keys — see below) all live in this one flat dict. |
 | `soft_delete` | `False` | **Parsed, currently unused.** fiction-scout doesn't implement a "keep soft-deleted records tagged in-index" behavior gated by this flag (see [Indexing: soft delete](indexing.md#soft-delete)) — what actually gates soft-delete behavior per model is the model's own `soft_delete_field` class variable, not this config key. |
-| `queue` | `False` | **Parsed, currently unused.** Nothing reads this field to auto-select a dispatcher — `runtime.get_dispatcher()` always returns a synchronous `SyncDispatcher()` for the Django adapter. To run sync operations through Celery instead, construct a `CeleryDispatcher` yourself and use the standalone CLI's `queue-import`, or wire it into your own adapter's `get_scout_dispatcher()`. |
+| `queue` | `False` | **Parsed, currently unused.** Nothing reads this field to auto-select a dispatcher — `runtime.get_dispatcher()` always returns a synchronous `SyncDispatcher()` for both the Django and SQLAlchemy adapters. To run sync operations through Celery instead, construct a `CeleryDispatcher` yourself and use the standalone CLI's `queue-import`, or wire it into your own adapter's `get_scout_dispatcher()`. |
 
 ## Driver-specific `extra` keys
 

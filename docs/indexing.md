@@ -6,15 +6,43 @@ and the hooks that let a model control its own indexing.
 ## Auto-sync on save/delete
 
 Once a model uses `SearchableMixin` and its adapter's sync trigger is wired
-up (Django's `post_save`/`post_delete` signals, connected automatically by
-`fiction_scout.adapters.django`'s `AppConfig.ready()`), every `save()` and
-`delete()` call keeps the index current with no extra code:
+up, every `save()`/`delete()` (or `session.commit()`) keeps the index
+current with no extra code. Each adapter uses its own ORM's native
+change-tracking mechanism — deliberately different, not just differently
+spelled:
+
+- **Django** — `post_save`/`post_delete` signals, connected automatically by
+  `fiction_scout.adapters.django`'s `AppConfig.ready()`.
+- **SQLAlchemy** — a `Session` `before_commit`/`after_commit` event pair,
+  connected by `fiction_scout.adapters.sqlalchemy.runtime.configure()`. Not
+  `after_insert`/`after_update`/`after_delete` — those fire mid-flush, before
+  the surrounding transaction is guaranteed to actually land, and indexing
+  on them would push rows into the search engine that a later rollback
+  makes never have existed. `after_commit` only ever fires once the
+  transaction is durable.
 
 ```python
 post = Post.objects.create(title="Star Trek II", body="The Wrath of Khan")
 post.title = "Star Trek II: The Wrath of Khan"
 post.save()       # re-indexed automatically
 post.delete()     # removed from the index automatically
+```
+
+Under SQLAlchemy, the equivalent is a `session.commit()` — sync happens
+once the transaction actually lands, not per `session.add()`/`session.delete()`
+call:
+
+```python
+with Session() as session:
+    post = Post(title="Star Trek II", body="The Wrath of Khan")
+    session.add(post)
+    session.commit()   # re-indexed automatically, once committed
+
+    post.title = "Star Trek II: The Wrath of Khan"
+    session.commit()   # re-indexed again
+
+    session.delete(post)
+    session.commit()   # removed from the index automatically
 ```
 
 You can also drive this manually, per instance, without touching the row:
@@ -53,11 +81,14 @@ fiction-scout flush myapp.models.Post   # remove every index entry; rows untouch
 
 ## Pausing sync during bulk operations
 
-Bulk ORM operations (`bulk_create`, `bulk_update`, migrations that touch many
-rows) bypass `save()`/`delete()` entirely, so Django's signals never fire for
-them — nothing to pause there. But if you're running your *own* loop that
-calls `.save()` repeatedly (e.g. a data-fix script), each call would
-otherwise trigger a synchronous index write per row. Wrap it:
+Bulk ORM operations (Django's `bulk_create`/`bulk_update`, SQLAlchemy's Core
+`session.execute(insert(...))`/`update(...)`, migrations that touch many
+rows) bypass `save()`/`delete()` and ORM-level session tracking entirely, so
+neither Django's signals nor SQLAlchemy's `before_commit`/`after_commit`
+hooks fire for them — nothing to pause there. But if you're running your
+*own* loop that calls `.save()` (or `session.add()` + `session.commit()`)
+repeatedly (e.g. a data-fix script), each call would otherwise trigger a
+synchronous index write per row/transaction. Wrap it:
 
 ```python
 from fiction_scout.sync.context import without_syncing_to_search
@@ -90,7 +121,8 @@ class Post(SearchableMixin, models.Model):
         return self.status == "published"
 ```
 
-On `save()`, the Django signal handler checks this per instance: `True`
+Each adapter's sync hook checks this per instance — Django's signal handler
+on `save()`, SQLAlchemy's `after_commit` hook on `session.commit()`: `True`
 indexes it, `False` removes it from the index (even if it was previously
 indexed and just transitioned to unpublished) — so flipping `status` back
 and forth correctly adds and removes the record without any extra code.
@@ -109,10 +141,11 @@ class Post(SearchableMixin, models.Model):
     soft_delete_field = "deleted_at"
 ```
 
-When that field is set (non-`None`) on save, the instance is removed from
-the index rather than updated — `orchestration.should_be_searchable()`
-excludes it, and `DjangoAdapter.apply_trashed_filter` filters it out of
-`database`-engine queries by default. `Builder.with_trashed()`/
+When that field is set (non-`None`) on save (or on commit, under
+SQLAlchemy), the instance is removed from the index rather than updated —
+`orchestration.should_be_searchable()` excludes it, and the adapter's
+`apply_trashed_filter` (`DjangoAdapter`, `SQLAlchemyAdapter`) filters it out
+of `database`-engine queries by default. `Builder.with_trashed()`/
 `.only_trashed()` retrieve soft-deleted rows anyway, but **only against the
 `database` and `collection` engines** — Algolia and Meilisearch remove a
 soft-deleted record from their index entirely rather than keeping it

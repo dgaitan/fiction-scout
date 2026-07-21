@@ -25,7 +25,7 @@ is the most common source of confusion with where clauses:**
 
 | Engine | `field` resolves against |
 |---|---|
-| `database` | The real ORM query, exactly as if you'd written it by hand — including relation-traversal syntax. **Not** `to_searchable_array()` keys. |
+| `database` | The real ORM query, exactly as if you'd written it by hand. **Not** `to_searchable_array()` keys. Under **Django**, this includes `__`-relation-traversal syntax (`.where_in("director__name", [...])`), since `DjangoAdapter` delegates straight to `QuerySet.filter(**{field: value})`. Under **SQLAlchemy**, `field` must be a direct attribute name on the model — `SQLAlchemyAdapter` resolves it via a flat `getattr(model, field)`, so relation traversal isn't available through `.where()` yet; use `.query(callback)` (below) to express a join/relationship filter directly against the `Select`. |
 | `collection` | The literal keys of the dict returned by `to_searchable_array()` — matching happens against that dict in Python, nothing else. |
 | `algolia` / `meilisearch` | Also the keys of `to_searchable_array()`, since that's what got pushed to the index — translated into each driver's native filter syntax below. |
 

@@ -34,16 +34,23 @@ pip install "fiction-scout[celery]"      # optional: background indexing via Cel
 
 ## Quickstart (SQLAlchemy)
 
+Unlike Django, SQLAlchemy has no settings-style implicit registry to
+auto-discover a database connection from — call `runtime.configure()` once
+at startup with your `sessionmaker`. This is also what wires up the
+`before_commit`/`after_commit` auto-sync hooks.
+
 ```python
-from fiction_scout.adapters.sqlalchemy import SearchableMixin
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+
+from fiction_scout.adapters.sqlalchemy import runtime
+from fiction_scout.adapters.sqlalchemy.mixin import SearchableMixin
 
 
 class Base(DeclarativeBase):
     pass
 
 
-class Post(Base, SearchableMixin):
+class Post(SearchableMixin, Base):
     __tablename__ = "posts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -51,10 +58,14 @@ class Post(Base, SearchableMixin):
     body: Mapped[str]
 
 
+Session = sessionmaker(bind=engine)
+runtime.configure(session_factory=Session)
+
 # Saving a Post automatically syncs it to the configured search index.
-post = Post(title="Star Trek II", body="The Wrath of Khan")
-session.add(post)
-session.commit()
+with Session() as session:
+    post = Post(title="Star Trek II", body="The Wrath of Khan")
+    session.add(post)
+    session.commit()
 
 results = Post.search("Star Trek").get()
 ```
